@@ -73,6 +73,94 @@ For more advanced template modifications see [Template development guide](https:
 > [!IMPORTANT]
 > When using modified version of default template do not replace contents of `./templates/default` as these might be overwritten during update, instead put it in separate directory and update `--template-path` value in `.github/workflows/workflow.yml` file.
 
+## The `templates/custom` template
+
+This repo builds from `./templates/custom` rather than `./templates/default`
+(see `--template-path` in `.github/workflows/workflow.yml`). It is a copy of the
+default template plus a few files that layer on top of the upstream bundle:
+
+| File | What it does |
+| --- | --- |
+| `include/assets/custom.css` | Restyles the article list, feed headers, toolbar and mobile layout. Written entirely against the theme variables, so all nine built-in themes still work. |
+| `include/assets/custom.js` | Adds behaviour the prebuilt SPA does not have — timestamps, read tracking, saved articles, keyboard navigation, service worker registration. |
+| `include/sw.js` | Service worker, so the page installs as an app and works offline. |
+| `include/assets/site.webmanifest` | Web app manifest (name, icons, standalone display, theme colour). |
+
+`index.hbs` is the stock one with a stylesheet `<link>`, a script `<script>`, a
+manifest `<link>` and a few extra `<meta>` tags added. Nothing in
+`index.js`/`index.css` is patched, so upstream template updates stay easy to
+take.
+
+### What the layer adds
+
+- **Relative timestamps** on every article (`5h`, `2d`, `1w`), with the exact
+  publication date on hover. `custom.js` wraps `fetch` and reads the feed JSON
+  the app is already downloading, so this costs no extra requests.
+- **Read tracking.** Opening an article dims it. Press `u` (or the ◎ button) to
+  hide everything you have read.
+- **Save for later.** Click the ★ on any row, then press `v` (or the ★ button)
+  to show only saved articles.
+- **New since your last visit** — those rows get an accent-coloured timestamp
+  and a dot, and the dock shows a count.
+- **Source chips** with a stable per-domain colour, replacing `(www.foo.com)`.
+- **Keyboard navigation**: `j`/`k` move, `o` or `Enter` opens, `s` saves, `m`
+  toggles read, `/` focuses search, `g`/`G` jump to top/bottom, `?` shows the
+  full list.
+- Reading progress bar, back-to-top button, focus rings, `prefers-reduced-motion`
+  support and a print stylesheet.
+- **Installable and offline-capable** — see below.
+
+Read state, saved articles and filter preferences live in `localStorage` under
+the `liveboat-custom:` prefix — they are per-browser and never leave the device.
+Read state older than 60 days is pruned automatically.
+
+### Progressive web app
+
+The page is installable: "Add to Home Screen" on iOS, "Install app" on
+Chrome/Edge/Android. It then opens without browser chrome, with its own icon.
+
+`include/sw.js` is emitted to `docs/sw.js` — the site root rather than
+`docs/assets/`, because a service worker can only control pages at or below its
+own path and GitHub Pages will not serve the `Service-Worker-Allowed` header
+that would relax that. It is registered from `custom.js` using
+`window.sitePath`, so it follows `site_path` automatically.
+
+Caching is chosen around the hourly rebuild, and around the fact that Liveboat
+cache-busts with query strings rather than hashed filenames:
+
+| Request | Strategy |
+| --- | --- |
+| Page navigation | Network first, cached shell as the offline fallback |
+| `assets/*` | Stale-while-revalidate — instant paint, refresh behind it |
+| `feeds/*`, `channels/*` | Network first, cached copy as the offline fallback |
+
+So online you always read current news; offline you read whatever you last
+loaded, with an "Offline" banner at the top of the page. The feed cache is
+capped at 60 entries and old cache versions are deleted on activation. When a
+new worker takes over an existing one, a toast offers a reload rather than
+pulling the page out from under you.
+
+`site.webmanifest` uses relative URLs (`start_url` and `scope` are `../` from
+`assets/`), so it resolves correctly regardless of `site_path`. The manifest is
+copied verbatim rather than templated — only `index.hbs` goes through
+Handlebars — so its `name` is the one thing that has to be kept in step with
+`title` in `./config/liveboat-config.toml` by hand.
+
+### Taking an upstream template update
+
+`make update` overwrites `./templates/default`. To carry that into our template:
+
+``` sh
+make update
+make sync-template
+```
+
+`make sync-template` recreates `./templates/custom` from `./templates/default`
+and re-injects the override `<link>`/`<script>` and the extra `<meta>` tags.
+`custom.css`, `custom.js`, `sw.js`, `site.webmanifest`, the 512px icon and
+`config.toml` are preserved as-is. The script is idempotent, so running it twice
+is safe.
+
 ## Liveboat URL file breakdown
 This section goes over basic Newsboat URL file syntax which Liveboat uses for parsing RSS links. For more detailed overview see [Newsboat documentation page](https://newsboat.org/releases/2.10.2/docs/newsboat.html)
 
