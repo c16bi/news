@@ -1,0 +1,665 @@
+/*
+ * custom.css — presentation layer on top of the Liveboat default stylesheet.
+ *
+ * Loaded after index.css. The upstream rules are scoped with [data-v-*]
+ * attribute selectors, so overrides here are prefixed with `#app` (or `body`)
+ * to win on specificity without resorting to !important.
+ *
+ * Everything is expressed in terms of the four theme variables
+ * (--color-text / --color-highlight / --color-accent / --color-background /
+ * --color-custom) so all nine built-in themes keep working.
+ */
+
+/* ------------------------------------------------------------------ */
+/* tokens                                                              */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --lb-radius: 7px;
+  --lb-gutter: 0.65rem;
+  --lb-time-width: 3.4rem;
+  --lb-hairline: rgb(from var(--color-text) r g b / 10%);
+  --lb-hover: rgb(from var(--color-accent) r g b / 28%);
+  --lb-muted: rgb(from var(--color-text) r g b / 75%);
+  --lb-faint: rgb(from var(--color-text) r g b / 56%);
+  --lb-surface: rgb(from var(--color-accent) r g b / 16%);
+}
+
+body {
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Wider, but still a comfortable measure for headlines. */
+@media (min-width: 1024px) {
+  #app {
+    width: min(1120px, 100vw - 3rem);
+    padding: 0 1.5rem 6rem;
+  }
+}
+
+#app {
+  padding-bottom: 6rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* header                                                              */
+/* ------------------------------------------------------------------ */
+
+#app .header-container {
+  height: auto;
+  min-height: 0;
+  margin: 0.5rem 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--lb-hairline);
+}
+
+#app .header-title h2 {
+  font-size: 1.55rem;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+#app .header-title h2 a {
+  font-weight: 600;
+}
+
+/* The build-info crumbs used to sit on top of the feed-navigator toggle. */
+#app .header-crumbs {
+  top: 6px;
+  right: 4.75rem;
+  max-width: 40%;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+#app .header-crumbs a {
+  pointer-events: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* filter toolbar                                                      */
+/* ------------------------------------------------------------------ */
+
+#app .filter-container {
+  padding: 0.5rem 0 0.75rem;
+  margin: 0 0 1rem;
+  border-bottom: 1px solid var(--lb-hairline);
+}
+
+#app .filter-box button,
+#app #filter-search input {
+  line-height: 30px;
+  border-radius: var(--lb-radius);
+  font-size: 0.82rem;
+}
+
+#app .filter-box button {
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+#app .filter-box button.selected {
+  outline: 1px solid rgb(from var(--color-text) r g b / 55%);
+  background-color: var(--lb-surface);
+}
+
+#app #filter-search input {
+  height: 32px;
+  border-radius: var(--lb-radius);
+}
+
+/* Upstream floats the range buttons right, which centres them in reverse
+   order once the toolbar becomes a flex row on narrow screens. */
+@media (max-width: 1000px) {
+  #app .filter-container {
+    height: 96px;
+  }
+  #app .filter-box {
+    float: none;
+    margin: 0 0.2rem;
+  }
+  #app .filter-box:nth-child(1) {
+    order: 4;
+  }
+  #app .filter-box:nth-child(2) {
+    order: 3;
+  }
+  #app .filter-box:nth-child(3) {
+    order: 2;
+  }
+  #app .filter-box:nth-child(4) {
+    order: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* feed section headers                                                */
+/* ------------------------------------------------------------------ */
+
+#app .feed-wrapper {
+  padding-bottom: 1.75rem;
+}
+
+/* Sticky so you always know which feed you are looking at. The background
+   must be opaque or rows scroll through it. */
+#app .feed-title {
+  padding: 0.45rem 0 0.1rem;
+  margin-bottom: 0.35rem;
+  border-bottom-width: 1px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: var(--color-background);
+}
+
+#app .feed-title a {
+  top: 0;
+  max-width: min(70%, 34rem);
+  border-radius: var(--lb-radius) var(--lb-radius) 0 0;
+  padding: 3px 14px 2px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+#app .feed-title .item-count {
+  font-variant-numeric: tabular-nums;
+}
+
+#app .feed-header-tag {
+  border-radius: 999px;
+  padding: 1px 8px;
+  line-height: 1.5;
+  font-weight: 600;
+  font-size: 0.7em;
+}
+
+/* ------------------------------------------------------------------ */
+/* article rows                                                        */
+/* ------------------------------------------------------------------ */
+
+#app .feed-item-group ul {
+  padding-left: 0;
+}
+
+#app li.feed-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
+  row-gap: 0.1rem;
+  line-height: 1.45;
+  padding: 0.42rem 0.5rem;
+  border-radius: var(--lb-radius);
+  border-bottom: 1px solid var(--lb-hairline);
+  position: relative;
+  scroll-margin-block: 5rem;
+  transition: background-color 0.12s ease;
+}
+
+#app li.feed-item:last-child {
+  border-bottom: none;
+}
+
+@media (hover: hover) {
+  #app li.feed-item:hover {
+    background-color: rgb(from var(--color-accent) r g b / 14%);
+  }
+}
+
+/* Keep the metadata packed against the headline instead of letting it drift
+   to the far right of a wide row. */
+#app .feed-item-link {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+#app .feed-item-link a {
+  padding: 0;
+  font-size: 0.98rem;
+  line-height: 1.45;
+  border-radius: 3px;
+}
+
+@media (hover: hover) {
+  #app .feed-item-link a:hover {
+    background-color: transparent;
+    color: var(--color-highlight);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+}
+
+/* Expanded article body spans the full row, below the metadata and the star. */
+#app .feed-item > .feed-item-details {
+  order: 10;
+  flex: 1 0 100%;
+  padding: 0.75rem 0 0.25rem var(--lb-time-width);
+  line-height: 1.62;
+}
+
+@media (max-width: 720px) {
+  #app .feed-item > .feed-item-details {
+    padding-left: 0;
+  }
+}
+
+/* --- timestamp column --- */
+
+#app .lb-time {
+  flex: 0 0 var(--lb-time-width);
+  width: var(--lb-time-width);
+  text-align: right;
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--lb-faint);
+  white-space: nowrap;
+  order: -1;
+  align-self: baseline;
+}
+
+#app .lb-new .lb-time {
+  color: var(--color-custom);
+  font-weight: 700;
+}
+
+/* --- source chip --- */
+
+#app .feed-item-domain {
+  opacity: 1;
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--lb-faint);
+  white-space: nowrap;
+}
+
+/* inline-block + vertical-align keeps the badge on the headline's baseline;
+   an inline-flex wrapper would push the whole chip below it. */
+#app .lb-source-badge {
+  display: inline-block;
+  min-width: 1.15rem;
+  margin-right: 0.3rem;
+  padding: 0 0.22rem;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.05rem;
+  vertical-align: -0.12em;
+  text-align: center;
+  color: #fff;
+  background-color: hsl(var(--lb-hue, 210) 42% 38%);
+}
+
+body.plain-theme .lb-source-badge,
+body.sollight-theme .lb-source-badge,
+body.seabreeze-theme .lb-source-badge,
+body.gameboy-theme .lb-source-badge {
+  background-color: hsl(var(--lb-hue, 210) 38% 46%);
+}
+
+#app .lb-source-label {
+  color: var(--lb-faint);
+}
+
+@media (max-width: 560px) {
+  #app .lb-source-label {
+    display: none;
+  }
+}
+
+#app .feed-item-author {
+  font-size: 0.72rem;
+  color: var(--lb-muted);
+  opacity: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18rem;
+}
+
+/* Narrow screens: headline on its own line, metadata on a second line below
+   it. `order` does the reordering so the DOM is left untouched. */
+@media (max-width: 720px) {
+  #app li.feed-item {
+    padding: 0.55rem 0.35rem;
+    column-gap: 0.45rem;
+  }
+  #app .feed-item-link {
+    order: 0;
+    flex: 1 0 100%;
+  }
+  #app .lb-time {
+    order: 5;
+    flex: 0 0 auto;
+    width: auto;
+    text-align: left;
+  }
+  #app .feed-item-domain {
+    order: 6;
+  }
+  #app .feed-item-author {
+    order: 7;
+    max-width: 11rem;
+  }
+  #app .feed-item > .feed-item-details {
+    order: 10;
+  }
+}
+
+/* --- states --- */
+
+#app .feed-item.lb-read .feed-item-link a,
+#app .feed-item.lb-read .feed-item-author,
+#app .feed-item.lb-read .feed-item-domain {
+  opacity: 0.48;
+}
+
+#app .feed-item.lb-new::before {
+  content: "";
+  position: absolute;
+  left: -0.35rem;
+  top: 0.75rem;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--color-custom);
+}
+
+#app .feed-item.lb-cursor {
+  background-color: rgb(from var(--color-accent) r g b / 34%);
+  box-shadow: inset 3px 0 0 var(--color-highlight);
+}
+
+/* --- save-for-later star --- */
+
+#app .lb-star {
+  order: 9;
+  flex: 0 0 auto;
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 0.15rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--lb-faint);
+  opacity: 0;
+  transition:
+    opacity 0.12s ease,
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+
+@media (hover: none) {
+  #app .lb-star {
+    opacity: 0.45;
+  }
+}
+
+#app .feed-item:hover .lb-star,
+#app .feed-item.lb-cursor .lb-star,
+#app .lb-star:focus-visible {
+  opacity: 1;
+}
+
+#app .lb-star[aria-pressed="true"] {
+  opacity: 1;
+  color: var(--color-custom);
+}
+
+#app .lb-star:hover {
+  color: var(--color-custom);
+  transform: scale(1.15);
+}
+
+/* --- client-side filters --- */
+
+body.lb-hide-read #app .feed-item.lb-read,
+body.lb-saved-only #app .feed-item:not(.lb-saved) {
+  display: none;
+}
+
+/* Collapse feed sections that no filter result left behind. */
+body.lb-hide-read #app .feed-wrapper:not(:has(.feed-item:not(.lb-read))),
+body.lb-saved-only #app .feed-wrapper:not(:has(.feed-item.lb-saved)) {
+  display: none;
+}
+
+body.lb-saved-only #app .filter-container::after,
+body.lb-hide-read #app .filter-container::after {
+  content: "Filtered view — press v or u to clear";
+  display: block;
+  clear: both;
+  padding-top: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--color-custom);
+}
+
+/* Day dividers in the left margin of a single-feed view. */
+#app .feed-group-date {
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+/* ------------------------------------------------------------------ */
+/* feed navigator                                                      */
+/* ------------------------------------------------------------------ */
+
+#app .navigator-link {
+  padding: 0.15rem 0 0.15rem 0.7rem;
+  border-radius: 0 3px 3px 0;
+}
+
+#app .navigator-link a {
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ */
+/* reading progress bar                                               */
+/* ------------------------------------------------------------------ */
+
+#lb-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 0;
+  background-color: var(--color-highlight);
+  z-index: 1000;
+  transition: width 0.08s linear;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* floating dock                                                       */
+/* ------------------------------------------------------------------ */
+
+#lb-dock {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.lb-dock-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  border: 1px solid rgb(from var(--color-text) r g b / 20%);
+  background-color: rgb(from var(--color-background) r g b / 92%);
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.lb-dock-btn:hover {
+  background-color: var(--color-accent);
+  transform: translateY(-1px);
+}
+
+.lb-dock-btn[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  border-color: var(--color-highlight);
+  color: var(--color-highlight);
+}
+
+.lb-dock-btn.lb-has-items {
+  color: var(--color-custom);
+}
+
+/* Back-to-top only matters once you have scrolled. */
+#lb-dock .lb-dock-btn:nth-last-child(2) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+body.lb-scrolled #lb-dock .lb-dock-btn:nth-last-child(2) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#lb-new-badge {
+  background-color: var(--color-custom);
+  color: var(--color-background);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  #lb-dock {
+    flex-direction: row;
+    align-items: center;
+    right: 0.6rem;
+    bottom: 0.6rem;
+  }
+  .lb-dock-btn {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* keyboard help overlay                                               */
+/* ------------------------------------------------------------------ */
+
+#lb-help {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  background-color: rgb(from var(--color-background) r g b / 88%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+#lb-help-card {
+  background-color: var(--color-background);
+  background-image: linear-gradient(
+    rgb(from var(--color-accent) r g b / 22%),
+    rgb(from var(--color-accent) r g b / 22%)
+  );
+  border: 1px solid var(--color-accent);
+  border-radius: 10px;
+  padding: 1.4rem 1.6rem;
+  max-width: 26rem;
+  width: 100%;
+  box-shadow: 0 18px 50px rgb(0 0 0 / 35%);
+}
+
+#lb-help-card h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.9rem;
+}
+
+#lb-help-card dl {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  row-gap: 0.4rem;
+  column-gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+#lb-help-card dt {
+  color: var(--color-highlight);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+#lb-help-card dd {
+  color: var(--lb-muted);
+  margin: 0;
+}
+
+#lb-help-card .lb-help-foot {
+  margin-top: 1.1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--lb-hairline);
+  font-size: 0.75rem;
+  color: var(--lb-faint);
+}
+
+/* ------------------------------------------------------------------ */
+/* accessibility & polish                                              */
+/* ------------------------------------------------------------------ */
+
+:focus-visible {
+  outline: 2px solid var(--color-custom);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background-color: rgb(from var(--color-highlight) r g b / 35%);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(from var(--color-text) r g b / 25%) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  #lb-dock,
+  #lb-progress,
+  #lb-help,
+  #app .filter-container,
+  #app .lb-star,
+  #feed-navigator,
+  #feed-navigator-overlay {
+    display: none !important;
+  }
+  #app li.feed-item {
+    break-inside: avoid;
+  }
+}

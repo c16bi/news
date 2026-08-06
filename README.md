@@ -73,6 +73,57 @@ For more advanced template modifications see [Template development guide](https:
 > [!IMPORTANT]
 > When using modified version of default template do not replace contents of `./templates/default` as these might be overwritten during update, instead put it in separate directory and update `--template-path` value in `.github/workflows/workflow.yml` file.
 
+## The `templates/custom` template
+
+This repo builds from `./templates/custom` rather than `./templates/default`
+(see `--template-path` in `.github/workflows/workflow.yml`). It is a copy of the
+default template plus two files that layer on top of the upstream bundle:
+
+| File | What it does |
+| --- | --- |
+| `include/assets/custom.css` | Restyles the article list, feed headers, toolbar and mobile layout. Written entirely against the theme variables, so all nine built-in themes still work. |
+| `include/assets/custom.js` | Adds behaviour the prebuilt SPA does not have — timestamps, read tracking, saved articles, keyboard navigation. |
+
+`index.hbs` is the stock one with a `<link>` and a `<script>` added for those two
+files, plus a few extra `<meta>` tags. Nothing in `index.js`/`index.css` is
+patched, so upstream template updates stay easy to take.
+
+### What the layer adds
+
+- **Relative timestamps** on every article (`5h`, `2d`, `1w`), with the exact
+  publication date on hover. `custom.js` wraps `fetch` and reads the feed JSON
+  the app is already downloading, so this costs no extra requests.
+- **Read tracking.** Opening an article dims it. Press `u` (or the ◎ button) to
+  hide everything you have read.
+- **Save for later.** Click the ★ on any row, then press `v` (or the ★ button)
+  to show only saved articles.
+- **New since your last visit** — those rows get an accent-coloured timestamp
+  and a dot, and the dock shows a count.
+- **Source chips** with a stable per-domain colour, replacing `(www.foo.com)`.
+- **Keyboard navigation**: `j`/`k` move, `o` or `Enter` opens, `s` saves, `m`
+  toggles read, `/` focuses search, `g`/`G` jump to top/bottom, `?` shows the
+  full list.
+- Reading progress bar, back-to-top button, focus rings, `prefers-reduced-motion`
+  support and a print stylesheet.
+
+Read state, saved articles and filter preferences live in `localStorage` under
+the `liveboat-custom:` prefix — they are per-browser and never leave the device.
+Read state older than 60 days is pruned automatically.
+
+### Taking an upstream template update
+
+`make update` overwrites `./templates/default`. To carry that into our template:
+
+``` sh
+make update
+make sync-template
+```
+
+`make sync-template` recreates `./templates/custom` from `./templates/default`
+and re-injects the override `<link>`/`<script>` and the extra `<meta>` tags.
+`custom.css`, `custom.js` and `config.toml` are preserved as-is. The script is
+idempotent, so running it twice is safe.
+
 ## Liveboat URL file breakdown
 This section goes over basic Newsboat URL file syntax which Liveboat uses for parsing RSS links. For more detailed overview see [Newsboat documentation page](https://newsboat.org/releases/2.10.2/docs/newsboat.html)
 

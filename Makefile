@@ -9,3 +9,8 @@ update:
 		chmod +x ./bin/liveboat; \
 	fi;
 	LIVEBOAT_TEMPLATE_DIR="$(TPL_PATH)" ./bin/liveboat -x update --config-file=./config/liveboat-config.toml
+
+# Re-apply our overrides on top of a freshly updated templates/default.
+.PHONY: sync-template
+sync-template:
+	./scripts/sync_custom_template.sh
