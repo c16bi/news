@@ -53,6 +53,10 @@ To execute page rebuild job.
 > [!TIP]
 > Pushing any tag starting with `build` will execute page rebuild.
 
+> [!TIP]
+> This repo also enables `workflow_dispatch`, so a rebuild can be started
+> without a tag: Actions tab → **Liveboat feed build** → **Run workflow**.
+
 __DONE__ Wait until Github Action finishes execution, then navigate to the repo Github Page `https:://<username>.github.io/<repo_name>` and verify everything is as expected.
 
 ## Changing page appearance

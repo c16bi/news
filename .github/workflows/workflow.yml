@@ -6,6 +6,9 @@ on:
   push:
       tags:
         - 'build*'
+  # Adds a "Run workflow" button to the Actions tab, so a rebuild no longer
+  # needs a `build*` tag pushed from a checkout.
+  workflow_dispatch:
 
 jobs:
   liveboat-feed-build:
