@@ -237,6 +237,9 @@
         timeEl.className = "lb-time";
         li.insertBefore(timeEl, li.firstChild);
       }
+      // A row decorated before its feed JSON arrived carries the placeholder
+      // class; clear it now that there is a real date to show.
+      timeEl.classList.remove("lb-time-pending");
       timeEl.textContent = relativeTime(info.date);
       timeEl.dateTime = new Date(info.date * 1000).toISOString();
       timeEl.title = fullDate(info.date);
@@ -645,12 +648,95 @@
   });
 
   /* ------------------------------------------------------------------ */
+  /* offline support                                                     */
+  /* ------------------------------------------------------------------ */
+
+  var toastEl = null;
+
+  function toast(message, actionLabel, onAction) {
+    if (toastEl) toastEl.remove();
+    toastEl = document.createElement("div");
+    toastEl.id = "lb-toast";
+    toastEl.setAttribute("role", "status");
+
+    var text = document.createElement("span");
+    text.textContent = message;
+    toastEl.appendChild(text);
+
+    if (actionLabel) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.textContent = actionLabel;
+      button.addEventListener("click", onAction);
+      toastEl.appendChild(button);
+    }
+
+    var dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "lb-toast-close";
+    dismiss.setAttribute("aria-label", "Dismiss");
+    dismiss.textContent = "×";
+    dismiss.addEventListener("click", function () {
+      if (toastEl) toastEl.remove();
+      toastEl = null;
+    });
+    toastEl.appendChild(dismiss);
+
+    document.body.appendChild(toastEl);
+  }
+
+  function trackConnectivity() {
+    function update() {
+      document.body.classList.toggle("lb-offline", !navigator.onLine);
+    }
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    update();
+  }
+
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    if (location.protocol !== "https:" && location.hostname !== "localhost")
+      return;
+
+    var base = window.sitePath || "/";
+    if (base.charAt(base.length - 1) !== "/") base += "/";
+
+    navigator.serviceWorker
+      .register(base + "sw.js", { scope: base })
+      .then(function (registration) {
+        // Only prompt when an update replaces an existing worker; the very
+        // first install has nothing to reload for.
+        registration.addEventListener("updatefound", function () {
+          var installing = registration.installing;
+          if (!installing || !navigator.serviceWorker.controller) return;
+          installing.addEventListener("statechange", function () {
+            if (installing.state === "installed") {
+              toast(
+                "A newer version of the page is available.",
+                "Reload",
+                function () {
+                  location.reload();
+                },
+              );
+            }
+          });
+        });
+      })
+      .catch(function () {
+        /* offline support is optional - never block the page on it */
+      });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* boot                                                                */
   /* ------------------------------------------------------------------ */
 
   function boot() {
     buildProgressBar();
     buildDock();
+    trackConnectivity();
+    registerServiceWorker();
 
     var app = document.getElementById("app");
     if (app) {

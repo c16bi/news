@@ -77,16 +77,19 @@ For more advanced template modifications see [Template development guide](https:
 
 This repo builds from `./templates/custom` rather than `./templates/default`
 (see `--template-path` in `.github/workflows/workflow.yml`). It is a copy of the
-default template plus two files that layer on top of the upstream bundle:
+default template plus a few files that layer on top of the upstream bundle:
 
 | File | What it does |
 | --- | --- |
 | `include/assets/custom.css` | Restyles the article list, feed headers, toolbar and mobile layout. Written entirely against the theme variables, so all nine built-in themes still work. |
-| `include/assets/custom.js` | Adds behaviour the prebuilt SPA does not have — timestamps, read tracking, saved articles, keyboard navigation. |
+| `include/assets/custom.js` | Adds behaviour the prebuilt SPA does not have — timestamps, read tracking, saved articles, keyboard navigation, service worker registration. |
+| `include/sw.js` | Service worker, so the page installs as an app and works offline. |
+| `include/assets/site.webmanifest` | Web app manifest (name, icons, standalone display, theme colour). |
 
-`index.hbs` is the stock one with a `<link>` and a `<script>` added for those two
-files, plus a few extra `<meta>` tags. Nothing in `index.js`/`index.css` is
-patched, so upstream template updates stay easy to take.
+`index.hbs` is the stock one with a stylesheet `<link>`, a script `<script>`, a
+manifest `<link>` and a few extra `<meta>` tags added. Nothing in
+`index.js`/`index.css` is patched, so upstream template updates stay easy to
+take.
 
 ### What the layer adds
 
@@ -105,10 +108,43 @@ patched, so upstream template updates stay easy to take.
   full list.
 - Reading progress bar, back-to-top button, focus rings, `prefers-reduced-motion`
   support and a print stylesheet.
+- **Installable and offline-capable** — see below.
 
 Read state, saved articles and filter preferences live in `localStorage` under
 the `liveboat-custom:` prefix — they are per-browser and never leave the device.
 Read state older than 60 days is pruned automatically.
+
+### Progressive web app
+
+The page is installable: "Add to Home Screen" on iOS, "Install app" on
+Chrome/Edge/Android. It then opens without browser chrome, with its own icon.
+
+`include/sw.js` is emitted to `docs/sw.js` — the site root rather than
+`docs/assets/`, because a service worker can only control pages at or below its
+own path and GitHub Pages will not serve the `Service-Worker-Allowed` header
+that would relax that. It is registered from `custom.js` using
+`window.sitePath`, so it follows `site_path` automatically.
+
+Caching is chosen around the hourly rebuild, and around the fact that Liveboat
+cache-busts with query strings rather than hashed filenames:
+
+| Request | Strategy |
+| --- | --- |
+| Page navigation | Network first, cached shell as the offline fallback |
+| `assets/*` | Stale-while-revalidate — instant paint, refresh behind it |
+| `feeds/*`, `channels/*` | Network first, cached copy as the offline fallback |
+
+So online you always read current news; offline you read whatever you last
+loaded, with an "Offline" banner at the top of the page. The feed cache is
+capped at 60 entries and old cache versions are deleted on activation. When a
+new worker takes over an existing one, a toast offers a reload rather than
+pulling the page out from under you.
+
+`site.webmanifest` uses relative URLs (`start_url` and `scope` are `../` from
+`assets/`), so it resolves correctly regardless of `site_path`. The manifest is
+copied verbatim rather than templated — only `index.hbs` goes through
+Handlebars — so its `name` is the one thing that has to be kept in step with
+`title` in `./config/liveboat-config.toml` by hand.
 
 ### Taking an upstream template update
 
@@ -121,8 +157,9 @@ make sync-template
 
 `make sync-template` recreates `./templates/custom` from `./templates/default`
 and re-injects the override `<link>`/`<script>` and the extra `<meta>` tags.
-`custom.css`, `custom.js` and `config.toml` are preserved as-is. The script is
-idempotent, so running it twice is safe.
+`custom.css`, `custom.js`, `sw.js`, `site.webmanifest`, the 512px icon and
+`config.toml` are preserved as-is. The script is idempotent, so running it twice
+is safe.
 
 ## Liveboat URL file breakdown
 This section goes over basic Newsboat URL file syntax which Liveboat uses for parsing RSS links. For more detailed overview see [Newsboat documentation page](https://newsboat.org/releases/2.10.2/docs/newsboat.html)

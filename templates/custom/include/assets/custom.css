@@ -663,3 +663,66 @@ body.lb-scrolled #lb-dock .lb-dock-btn:nth-last-child(2) {
     break-inside: avoid;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* offline banner and toasts                                           */
+/* ------------------------------------------------------------------ */
+
+body.lb-offline #app::before {
+  content: "Offline — showing the articles you last loaded";
+  display: block;
+  margin: 0 0 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--lb-radius);
+  background-color: rgb(from var(--color-custom) r g b / 16%);
+  border: 1px solid rgb(from var(--color-custom) r g b / 45%);
+  color: var(--color-custom);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+#lb-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  z-index: 1002;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(30rem, calc(100vw - 2rem));
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-accent);
+  background-color: var(--color-background);
+  background-image: linear-gradient(
+    rgb(from var(--color-accent) r g b / 28%),
+    rgb(from var(--color-accent) r g b / 28%)
+  );
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+  font-size: 0.82rem;
+}
+
+#lb-toast button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-highlight);
+  font-weight: 700;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+#lb-toast .lb-toast-close {
+  color: var(--lb-faint);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+
+/* The dock would sit on top of the toast on narrow screens. */
+@media (max-width: 560px) {
+  body:has(#lb-toast) #lb-dock {
+    bottom: 4.25rem;
+  }
+}
