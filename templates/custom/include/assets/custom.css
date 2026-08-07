@@ -23,6 +23,26 @@
   --lb-muted: rgb(from var(--color-text) r g b / 75%);
   --lb-faint: rgb(from var(--color-text) r g b / 56%);
   --lb-surface: rgb(from var(--color-accent) r g b / 16%);
+  --lb-card-bg: rgb(from var(--color-accent) r g b / 12%);
+  --lb-card-border: rgb(from var(--color-text) r g b / 12%);
+  --lb-row-hover: rgb(from var(--color-accent) r g b / 14%);
+}
+
+/* In the light themes the accent colour sits within a few percent of the
+   background (Seabreeze is #d7d7db on #e1e2e7), so accent-tinted surfaces
+   disappear and muted text loses contrast. Derive both from the text colour
+   instead, and carry more of it. */
+body.seabreeze-theme,
+body.sollight-theme,
+body.plain-theme,
+body.gameboy-theme {
+  --lb-hairline: rgb(from var(--color-text) r g b / 20%);
+  --lb-muted: rgb(from var(--color-text) r g b / 88%);
+  --lb-faint: rgb(from var(--color-text) r g b / 68%);
+  --lb-card-bg: rgb(from var(--color-text) r g b / 5%);
+  --lb-card-border: rgb(from var(--color-text) r g b / 16%);
+  --lb-row-hover: rgb(from var(--color-text) r g b / 7%);
+  --lb-surface: rgb(from var(--color-text) r g b / 8%);
 }
 
 body {
@@ -206,7 +226,7 @@ body {
 
 @media (hover: hover) {
   #app li.feed-item:hover {
-    background-color: rgb(from var(--color-accent) r g b / 14%);
+    background-color: var(--lb-row-hover);
   }
 }
 
@@ -385,8 +405,15 @@ body.gameboy-theme .lb-source-badge {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0 0.15rem;
-  font-size: 0.85rem;
+  /* Generous hit area; the glyph inside stays small. */
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-block: -0.5rem;
+  font-size: 0.9rem;
   line-height: 1;
   color: var(--lb-faint);
   opacity: 0;
@@ -396,9 +423,14 @@ body.gameboy-theme .lb-source-badge {
     transform 0.12s ease;
 }
 
+/* Touch devices get no hover, so the control has to be permanently visible
+   and at least 44px square to be reliably tappable. */
 @media (hover: none) {
   #app .lb-star {
-    opacity: 0.45;
+    opacity: 0.7;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    font-size: 1.05rem;
   }
 }
 
@@ -421,13 +453,28 @@ body.gameboy-theme .lb-source-badge {
 /* --- client-side filters --- */
 
 body.lb-hide-read #app .feed-item.lb-read,
-body.lb-saved-only #app .feed-item:not(.lb-saved) {
+body.lb-saved-only #app .feed-item:not(.lb-saved):not(.lb-just-unsaved) {
   display: none;
+}
+
+/* Unstarring inside the saved-only view would otherwise remove the row under
+   the cursor mid-click, which reads as "nothing happened". */
+body.lb-saved-only #app .feed-item.lb-just-unsaved {
+  opacity: 0.45;
+}
+
+body.lb-saved-only #app .feed-item.lb-just-unsaved .lb-time::after {
+  content: " removed";
+  color: var(--color-custom);
 }
 
 /* Collapse feed sections that no filter result left behind. */
 body.lb-hide-read #app .feed-wrapper:not(:has(.feed-item:not(.lb-read))),
-body.lb-saved-only #app .feed-wrapper:not(:has(.feed-item.lb-saved)) {
+body.lb-saved-only
+  #app
+  .feed-wrapper:not(:has(.feed-item.lb-saved)):not(
+    :has(.feed-item.lb-just-unsaved)
+  ) {
   display: none;
 }
 
@@ -544,12 +591,14 @@ body.lb-scrolled #lb-dock .lb-dock-btn:nth-last-child(2) {
   white-space: nowrap;
 }
 
+/* Two stacked bars: the dock row sits above the full-width layout tabs so
+   neither covers the other. */
 @media (max-width: 560px) {
   #lb-dock {
     flex-direction: row;
     align-items: center;
     right: 0.6rem;
-    bottom: 0.6rem;
+    bottom: 4.1rem;
   }
   .lb-dock-btn {
     width: 2.6rem;
@@ -724,5 +773,308 @@ body.lb-offline #app::before {
 @media (max-width: 560px) {
   body:has(#lb-toast) #lb-dock {
     bottom: 4.25rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* layout tabs                                                         */
+/* ------------------------------------------------------------------ */
+
+#lb-layout-tabs {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 899;
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid rgb(from var(--color-text) r g b / 18%);
+  background-color: rgb(from var(--color-background) r g b / 92%);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 22px rgb(0 0 0 / 22%);
+}
+
+#lb-layout-tabs button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--lb-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+#lb-layout-tabs button:hover {
+  color: var(--color-text);
+}
+
+#lb-layout-tabs button[aria-selected="true"] {
+  background-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+@media (max-width: 560px) {
+  #lb-layout-tabs {
+    bottom: 0.6rem;
+    left: 0.6rem;
+    right: 0.6rem;
+    transform: none;
+    justify-content: space-between;
+  }
+  #lb-layout-tabs button {
+    flex: 1 1 0;
+    padding: 0.5rem 0.35rem;
+    font-size: 0.72rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* layout: cards                                                       */
+/* ------------------------------------------------------------------ */
+
+body[data-lb-layout="cards"] #app .feed-item-group ul {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  body[data-lb-layout="cards"] #app .feed-item-group ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+body[data-lb-layout="cards"] #app li.feed-item {
+  align-content: start;
+  border: 1px solid var(--lb-card-border);
+  border-radius: 10px;
+  padding: 0.85rem 0.95rem;
+  background-color: var(--lb-card-bg);
+}
+
+body[data-lb-layout="cards"] #app .feed-item-link {
+  flex: 1 0 100%;
+  order: 0;
+}
+
+body[data-lb-layout="cards"] #app .feed-item-link a {
+  font-size: 1.05rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+body[data-lb-layout="cards"] #app .lb-time {
+  order: 5;
+  flex: 0 0 auto;
+  width: auto;
+  text-align: left;
+  margin-top: 0.5rem;
+}
+
+body[data-lb-layout="cards"] #app .feed-item-domain {
+  order: 6;
+  margin-top: 0.5rem;
+}
+
+body[data-lb-layout="cards"] #app .feed-item-author {
+  order: 7;
+  margin-top: 0.5rem;
+  max-width: 12rem;
+}
+
+body[data-lb-layout="cards"] #app .lb-star {
+  order: 8;
+  margin-top: 0.3rem;
+}
+
+body[data-lb-layout="cards"] #app .feed-item.lb-new::before {
+  left: 0.4rem;
+  top: 0.55rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* layout: digest — the newest item in each feed leads                 */
+/* ------------------------------------------------------------------ */
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child {
+  padding: 0.9rem 0.6rem 1.1rem;
+  border-bottom: 2px solid var(--lb-hairline);
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child .feed-item-link {
+  flex: 1 0 100%;
+  order: 0;
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child .feed-item-link a {
+  font-size: 1.45rem;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child .lb-time {
+  order: 5;
+  flex: 0 0 auto;
+  width: auto;
+  text-align: left;
+  margin-top: 0.55rem;
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child .feed-item-domain {
+  order: 6;
+  margin-top: 0.55rem;
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child .feed-item-author {
+  order: 7;
+  margin-top: 0.55rem;
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:first-child .lb-star {
+  order: 8;
+  margin-top: 0.4rem;
+}
+
+body[data-lb-layout="digest"] #app li.feed-item:not(:first-child) {
+  padding-left: 0.5rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* layout: reader — text first, no chrome                              */
+/* ------------------------------------------------------------------ */
+
+body[data-lb-layout="reader"] #app {
+  --lb-time-width: 0;
+}
+
+@media (min-width: 1024px) {
+  body[data-lb-layout="reader"] #app {
+    width: min(720px, 100vw - 3rem);
+  }
+}
+
+/* The desktop toolbar assumes a ~1100px container; inside a 720px column the
+   floated range buttons and the search box collide. Reuse the narrow-screen
+   arrangement regardless of viewport width. */
+body[data-lb-layout="reader"] #app .filter-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: auto;
+  padding-bottom: 0.75rem;
+}
+
+body[data-lb-layout="reader"] #app .filter-box {
+  float: none;
+  margin: 0;
+}
+
+body[data-lb-layout="reader"] #app .filter-box:nth-child(1) {
+  order: 4;
+}
+body[data-lb-layout="reader"] #app .filter-box:nth-child(2) {
+  order: 3;
+}
+body[data-lb-layout="reader"] #app .filter-box:nth-child(3) {
+  order: 2;
+}
+body[data-lb-layout="reader"] #app .filter-box:nth-child(4) {
+  order: 1;
+}
+
+body[data-lb-layout="reader"] #app #filter-search {
+  float: none;
+  order: 10;
+  flex: 1 0 100%;
+  margin-top: 0.5rem;
+}
+
+body[data-lb-layout="reader"] #app #filter-search input {
+  width: 100%;
+  margin-top: 0;
+}
+
+body[data-lb-layout="reader"] #app #filter-search-icon {
+  top: 7px;
+}
+
+body[data-lb-layout="reader"] #app #filter-search-clear {
+  top: 9px;
+}
+
+body[data-lb-layout="reader"] #app #filter-search-help {
+  display: none;
+}
+
+body[data-lb-layout="reader"] #app li.feed-item {
+  padding: 0.7rem 0.2rem;
+  border-bottom: 1px solid var(--lb-hairline);
+}
+
+body[data-lb-layout="reader"] #app .feed-item-link {
+  flex: 1 0 100%;
+}
+
+body[data-lb-layout="reader"] #app .feed-item-link a {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 1.12rem;
+  line-height: 1.42;
+}
+
+body[data-lb-layout="reader"] #app .lb-source-badge,
+body[data-lb-layout="reader"] #app .feed-header-tag,
+body[data-lb-layout="reader"] #app .feed-query-indicator {
+  display: none;
+}
+
+body[data-lb-layout="reader"] #app .lb-time {
+  order: 5;
+  flex: 0 0 auto;
+  width: auto;
+  text-align: left;
+  margin-top: 0.3rem;
+}
+
+body[data-lb-layout="reader"] #app .feed-item-domain {
+  order: 6;
+  margin-top: 0.3rem;
+}
+
+body[data-lb-layout="reader"] #app .feed-item-author {
+  order: 7;
+  margin-top: 0.3rem;
+}
+
+body[data-lb-layout="reader"] #app .feed-title a {
+  background-color: transparent;
+  padding-left: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--lb-muted);
+}
+
+body[data-lb-layout="reader"] #app .feed-title {
+  border-bottom-color: var(--lb-hairline);
+}
+
+/* Room for the floating dock and layout tabs at the bottom of the viewport. */
+#app {
+  padding-bottom: 8rem;
+}
+
+@media (max-width: 560px) {
+  #app {
+    padding-bottom: 10rem;
   }
 }
