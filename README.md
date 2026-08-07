@@ -110,13 +110,42 @@ take.
 - **Keyboard navigation**: `j`/`k` move, `o` or `Enter` opens, `s` saves, `m`
   toggles read, `/` focuses search, `g`/`G` jump to top/bottom, `?` shows the
   full list.
+- **Four article layouts**, switchable from the tab bar at the bottom of the
+  page or with `[` / `]`. The choice is remembered.
 - Reading progress bar, back-to-top button, focus rings, `prefers-reduced-motion`
   support and a print stylesheet.
 - **Installable and offline-capable** — see below.
 
-Read state, saved articles and filter preferences live in `localStorage` under
-the `liveboat-custom:` prefix — they are per-browser and never leave the device.
-Read state older than 60 days is pruned automatically.
+Read state, saved articles, the chosen layout and filter preferences live in
+`localStorage` under the `liveboat-custom:` prefix — they are per-browser and
+never leave the device. Read state older than 60 days is pruned automatically.
+
+### Layouts
+
+| Layout | What it is |
+| --- | --- |
+| **Compact** | Dense one-line rows with a timestamp column. The default. |
+| **Cards** | Each article a bordered card; two columns from 900px up. |
+| **Digest** | The newest article in each feed leads at display size, the rest follow as a list. |
+| **Reader** | Narrow serif column, no chips or badges, feed names as uppercase kickers. |
+
+Every layout is pure CSS keyed off `data-lb-layout` on `<body>` — the DOM the
+SPA renders is identical in all four, so adding another is a block of CSS and
+one entry in the `LAYOUTS` array in `custom.js`. The attribute is used rather
+than a class because switching theme clears `body.className`.
+
+### Theme
+
+The SPA reads its theme from `localStorage` at startup and falls back to
+`default`. `custom.js` runs before it (classic script, ahead of the deferred
+module) and seeds that key with **`seabreeze`** when the reader has never chosen
+one — so a first visit is Seabreeze, and any explicit pick from the dropdown,
+including "Default Theme", wins from then on.
+
+The light themes need different treatment from the dark ones: Seabreeze's accent
+(`#d7d7db`) sits within a few percent of its background (`#e1e2e7`), so
+accent-tinted surfaces and hairlines vanish. `custom.css` derives those from the
+text colour instead for `seabreeze`, `sollight`, `plain` and `gameboy`.
 
 ### Progressive web app
 

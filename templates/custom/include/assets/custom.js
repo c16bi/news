@@ -69,6 +69,102 @@
   save("lastVisit", Math.floor(now / 1000));
 
   /* ------------------------------------------------------------------ */
+  /* default theme                                                       */
+  /* ------------------------------------------------------------------ */
+
+  // The SPA reads its theme from localStorage at startup and falls back to
+  // "default". This runs first (classic script, ahead of the deferred module),
+  // so seeding the key here changes the first-visit theme without touching the
+  // bundle - and only when the reader has never chosen one, so an explicit
+  // pick, including "Default Theme", is always respected afterwards.
+  var THEME_KEY = "liveboat-default-theme";
+  var DEFAULT_THEME = "seabreeze";
+  try {
+    if (localStorage.getItem(THEME_KEY) === null) {
+      localStorage.setItem(THEME_KEY, DEFAULT_THEME);
+    }
+  } catch (e) {
+    /* private mode - the SPA falls back to its own default */
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* layouts                                                             */
+  /* ------------------------------------------------------------------ */
+
+  // Each layout is pure CSS keyed off a data attribute on <body>; the DOM the
+  // SPA renders is identical in all of them. An attribute rather than a class
+  // because switching theme clears body.className.
+  var LAYOUTS = [
+    { id: "compact", label: "Compact", hint: "Dense one-line rows" },
+    {
+      id: "cards",
+      label: "Cards",
+      hint: "Roomy cards, multi-column when wide",
+    },
+    {
+      id: "digest",
+      label: "Digest",
+      hint: "Lead story per section, rest listed",
+    },
+    { id: "reader", label: "Reader", hint: "Minimal, generous type, no chips" },
+  ];
+
+  function layoutIds() {
+    return LAYOUTS.map(function (l) {
+      return l.id;
+    });
+  }
+
+  function currentLayout() {
+    return layoutIds().indexOf(prefs.layout) === -1 ? "compact" : prefs.layout;
+  }
+
+  function applyLayout() {
+    document.body.setAttribute("data-lb-layout", currentLayout());
+    if (!layoutTabs) return;
+    var buttons = layoutTabs.querySelectorAll("button");
+    for (var i = 0; i < buttons.length; i++) {
+      var on = buttons[i].getAttribute("data-lb-layout-id") === currentLayout();
+      buttons[i].setAttribute("aria-selected", on ? "true" : "false");
+    }
+  }
+
+  var layoutTabs = null;
+
+  function buildLayoutTabs() {
+    layoutTabs = document.createElement("div");
+    layoutTabs.id = "lb-layout-tabs";
+    layoutTabs.setAttribute("role", "tablist");
+    layoutTabs.setAttribute("aria-label", "Article layout");
+
+    LAYOUTS.forEach(function (layout) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "tab");
+      b.setAttribute("data-lb-layout-id", layout.id);
+      b.textContent = layout.label;
+      b.title = layout.hint;
+      b.addEventListener("click", function () {
+        prefs.layout = layout.id;
+        save("prefs", prefs);
+        applyLayout();
+      });
+      layoutTabs.appendChild(b);
+    });
+
+    document.body.appendChild(layoutTabs);
+    applyLayout();
+  }
+
+  function cycleLayout(delta) {
+    var ids = layoutIds();
+    var next = (ids.indexOf(currentLayout()) + delta + ids.length) % ids.length;
+    prefs.layout = ids[next];
+    save("prefs", prefs);
+    applyLayout();
+  }
+
+  /* ------------------------------------------------------------------ */
   /* feed metadata harvesting                                            */
   /* ------------------------------------------------------------------ */
 
@@ -264,16 +360,27 @@
       star.setAttribute("aria-pressed", savedMap[url] ? "true" : "false");
       star.title = "Save for later (s)";
       star.setAttribute("aria-label", "Save for later");
-      star.textContent = "★";
+      star.innerHTML = "<span aria-hidden='true'>★</span>";
       star.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopPropagation();
-        var titleText = anchor.textContent.trim();
+        // Vue reuses <li> nodes between renders, so the URL must be read from
+        // the DOM at click time - a closure variable can point at whichever
+        // article happened to occupy this row when the button was created.
+        var current = li.getAttribute("data-lb-url");
+        if (!current) return;
+        var link = li.querySelector(".feed-item-link a[href]");
         var dom = cleanDomain(
           (li.querySelector(".lb-source-label") || {}).textContent,
         );
-        toggleSaved(url, titleText, dom);
-        applyState(li);
+        var wasSaved = !!savedMap[current];
+        toggleSaved(current, link ? link.textContent.trim() : "", dom);
+        // In the saved-only view an unsaved row would vanish mid-click, which
+        // reads as "nothing happened". Keep it on screen until the filter is
+        // next re-applied.
+        if (wasSaved && prefs.savedOnly) li.classList.add("lb-just-unsaved");
+        else li.classList.remove("lb-just-unsaved");
+        syncRows(current);
         refreshDock();
       });
       li.appendChild(star);
@@ -281,21 +388,31 @@
 
     if (!li.hasAttribute("data-lb-bound")) {
       li.setAttribute("data-lb-bound", "");
-      anchor.addEventListener("click", function () {
-        markRead(url, true);
-        applyState(li);
+      var onOpen = function () {
+        var current = li.getAttribute("data-lb-url");
+        if (!current) return;
+        markRead(current, true);
+        syncRows(current);
         refreshDock();
-      });
+      };
+      anchor.addEventListener("click", onOpen);
       // Middle click / cmd-click open in a background tab without firing click.
       anchor.addEventListener("auxclick", function (event) {
-        if (event.button !== 1) return;
-        markRead(url, true);
-        applyState(li);
-        refreshDock();
+        if (event.button === 1) onOpen();
       });
     }
 
     applyState(li);
+  }
+
+  /* The same article appears in both a query feed and its source feed, so a
+     state change has to reach every row showing that URL, not just the one
+     that was clicked. */
+  function syncRows(url) {
+    var rows = document.querySelectorAll(
+      '[data-lb-url="' + url.replace(/"/g, '\\"') + '"]',
+    );
+    for (var i = 0; i < rows.length; i++) applyState(rows[i]);
   }
 
   function applyState(li) {
@@ -349,6 +466,10 @@
     document.body.classList.toggle("lb-hide-read", !!prefs.hideRead);
     document.body.classList.toggle("lb-saved-only", !!prefs.savedOnly);
     document.body.classList.toggle("lb-scrolled", window.scrollY > 240);
+    var reprieved = document.querySelectorAll(".lb-just-unsaved");
+    for (var i = 0; i < reprieved.length; i++) {
+      reprieved[i].classList.remove("lb-just-unsaved");
+    }
     if (hideReadBtn)
       hideReadBtn.setAttribute(
         "aria-pressed",
@@ -538,6 +659,7 @@
       "<dt>u</dt><dd>hide articles you have read</dd>" +
       "<dt>v</dt><dd>show saved articles only</dd>" +
       "<dt>/</dt><dd>focus the search box</dd>" +
+      "<dt>[ / ]</dt><dd>previous / next article layout</dd>" +
       "<dt>g / G</dt><dd>jump to top / bottom</dd>" +
       "<dt>Esc</dt><dd>close this panel, clear selection</dd>" +
       "<dt>?</dt><dd>toggle this panel</dd>" +
@@ -640,6 +762,14 @@
           behavior: prefersReducedMotion() ? "auto" : "smooth",
         });
         break;
+      case "[":
+        event.preventDefault();
+        cycleLayout(-1);
+        break;
+      case "]":
+        event.preventDefault();
+        cycleLayout(1);
+        break;
       case "?":
         event.preventDefault();
         toggleHelp();
@@ -735,6 +865,7 @@
   function boot() {
     buildProgressBar();
     buildDock();
+    buildLayoutTabs();
     trackConnectivity();
     registerServiceWorker();
 
