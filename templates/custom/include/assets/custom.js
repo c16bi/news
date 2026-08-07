@@ -107,7 +107,18 @@
       hint: "Lead story per section, rest listed",
     },
     { id: "reader", label: "Reader", hint: "Minimal, generous type, no chips" },
+    {
+      id: "discover",
+      label: "Discover",
+      hint: "Image-led cards, best on a phone",
+    },
   ];
+
+  // Only this layout pulls in remote images, so nothing is fetched unless the
+  // reader actually asks for it.
+  function layoutWantsImages() {
+    return currentLayout() === "discover";
+  }
 
   function layoutIds() {
     return LAYOUTS.map(function (l) {
@@ -121,6 +132,7 @@
 
   function applyLayout() {
     document.body.setAttribute("data-lb-layout", currentLayout());
+    schedule();
     if (!layoutTabs) return;
     var buttons = layoutTabs.querySelectorAll("button");
     for (var i = 0; i < buttons.length; i++) {
@@ -172,13 +184,30 @@
   var meta = Object.create(null);
   var metaDirty = false;
 
+  // Enclosure mime types in these feeds are unreliable - mostly absent or
+  // "text/plain" even for JPEGs - so the extension is what decides.
+  var IMAGE_RE = /\.(jpe?g|png|webp|avif|gif)(\?|#|$)/i;
+
+  function imageFor(item) {
+    var url = (item.enclosureUrl || "").trim();
+    if (!url) return "";
+    var mime = item.enclosureMime || "";
+    if (mime.indexOf("image/") === 0) return url;
+    return IMAGE_RE.test(url) ? url : "";
+  }
+
   function harvest(payload) {
     if (!payload || !payload.items || !payload.items.length) return;
     var feedName = payload.displayTitle || payload.title || "";
     for (var i = 0; i < payload.items.length; i++) {
       var it = payload.items[i];
       if (!it || !it.url || meta[it.url]) continue;
-      meta[it.url] = { date: it.date || 0, feed: feedName };
+      meta[it.url] = {
+        date: it.date || 0,
+        feed: feedName,
+        img: imageFor(it),
+        content: it.content || "",
+      };
       metaDirty = true;
     }
     if (metaDirty) schedule();
@@ -295,6 +324,33 @@
     save("saved", savedMap);
   }
 
+  /* Thumbnails exist only while an image layout is active. A failed load
+     removes the element rather than leaving a broken frame - roughly half the
+     feeds here carry no enclosure at all, and remote CDNs may refuse
+     hotlinking. */
+  function syncThumb(li, info) {
+    var existing = li.querySelector(".lb-thumb");
+    if (!layoutWantsImages() || !info || !info.img) {
+      if (existing) existing.remove();
+      li.classList.remove("lb-has-image");
+      return;
+    }
+    if (existing) return;
+
+    var img = document.createElement("img");
+    img.className = "lb-thumb";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.alt = "";
+    img.addEventListener("error", function () {
+      img.remove();
+      li.classList.remove("lb-has-image");
+    });
+    img.src = info.img;
+    li.insertBefore(img, li.firstChild);
+    li.classList.add("lb-has-image");
+  }
+
   function decorateItem(li) {
     var linkWrap = li.querySelector(".feed-item-link");
     var anchor = linkWrap && linkWrap.querySelector("a[href]");
@@ -352,6 +408,8 @@
       li.insertBefore(timeEl, li.firstChild);
     }
 
+    syncThumb(li, info);
+
     // --- save-for-later button ---
     if (!li.querySelector(".lb-star")) {
       var star = document.createElement("button");
@@ -395,7 +453,19 @@
         syncRows(current);
         refreshDock();
       };
-      anchor.addEventListener("click", onOpen);
+      anchor.addEventListener("click", function (event) {
+        // Modified clicks always belong to the browser.
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+          onOpen();
+          return;
+        }
+        if (inAppReadingOn()) {
+          event.preventDefault();
+          openSheet(li);
+          return;
+        }
+        onOpen();
+      });
       // Middle click / cmd-click open in a background tab without firing click.
       anchor.addEventListener("auxclick", function (event) {
         if (event.button === 1) onOpen();
@@ -455,7 +525,7 @@
   /* floating dock                                                       */
   /* ------------------------------------------------------------------ */
 
-  var dock, hideReadBtn, savedBtn, newBadge, topBtn;
+  var dock, hideReadBtn, savedBtn, newBadge, topBtn, readerBtn;
 
   function setPref(key, value) {
     prefs[key] = value;
@@ -517,6 +587,15 @@
       });
     });
 
+    readerBtn = makeDockButton(
+      "&#9744;",
+      "Open articles inside the app (r)",
+      function () {
+        setPref("inAppReader", !inAppReadingOn());
+        paintReaderBtn();
+      },
+    );
+
     var helpBtn = makeDockButton("?", "Keyboard shortcuts (?)", toggleHelp);
 
     newBadge = document.createElement("span");
@@ -526,10 +605,20 @@
     dock.appendChild(newBadge);
     dock.appendChild(savedBtn);
     dock.appendChild(hideReadBtn);
+    dock.appendChild(readerBtn);
     dock.appendChild(topBtn);
     dock.appendChild(helpBtn);
     document.body.appendChild(dock);
     applyFilters();
+    paintReaderBtn();
+  }
+
+  function paintReaderBtn() {
+    if (!readerBtn) return;
+    readerBtn.setAttribute("aria-pressed", inAppReadingOn() ? "true" : "false");
+    readerBtn.title = inAppReadingOn()
+      ? "Articles open in a preview inside the app (r)"
+      : "Articles open directly in the browser (r)";
   }
 
   function refreshDock() {
@@ -560,12 +649,25 @@
     bar.id = "lb-progress";
     document.body.appendChild(bar);
     var ticking = false;
+    var lastY = window.scrollY;
     function update() {
       ticking = false;
+      var y = window.scrollY;
       var max = document.documentElement.scrollHeight - window.innerHeight;
-      var pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+      var pct = max > 0 ? (y / max) * 100 : 0;
       bar.style.width = pct.toFixed(2) + "%";
-      document.body.classList.toggle("lb-scrolled", window.scrollY > 240);
+      document.body.classList.toggle("lb-scrolled", y > 240);
+
+      // Screen space is scarce on a phone and the floating controls sit on top
+      // of the feed. Tuck them away while reading down, bring them back on any
+      // upward scroll. The 6px threshold ignores scroll jitter.
+      if (Math.abs(y - lastY) > 6) {
+        document.body.classList.toggle(
+          "lb-chrome-hidden",
+          y > lastY && y > 160,
+        );
+        lastY = y;
+      }
     }
     window.addEventListener(
       "scroll",
@@ -659,6 +761,7 @@
       "<dt>u</dt><dd>hide articles you have read</dd>" +
       "<dt>v</dt><dd>show saved articles only</dd>" +
       "<dt>/</dt><dd>focus the search box</dd>" +
+      "<dt>r</dt><dd>open articles in-app or in the browser</dd>" +
       "<dt>[ / ]</dt><dd>previous / next article layout</dd>" +
       "<dt>g / G</dt><dd>jump to top / bottom</dd>" +
       "<dt>Esc</dt><dd>close this panel, clear selection</dd>" +
@@ -676,6 +779,10 @@
     if (event.metaKey || event.ctrlKey || event.altKey) return;
 
     if (event.key === "Escape") {
+      if (sheet) {
+        closeSheet();
+        return;
+      }
       if (helpOverlay) {
         toggleHelp();
         return;
@@ -762,6 +869,11 @@
           behavior: prefersReducedMotion() ? "auto" : "smooth",
         });
         break;
+      case "r":
+        event.preventDefault();
+        setPref("inAppReader", !inAppReadingOn());
+        paintReaderBtn();
+        break;
       case "[":
         event.preventDefault();
         cycleLayout(-1);
@@ -776,6 +888,186 @@
         break;
     }
   });
+
+  /* ------------------------------------------------------------------ */
+  /* in-app article sheet                                                */
+  /* ------------------------------------------------------------------ */
+
+  /* Opening a link from an installed PWA hands you to the system browser and
+     you lose your place. This keeps you inside the app: the sheet shows the
+     summary the feed already gave us, with the original one tap away.
+
+     The summary is all we have - these are RSS feeds, not full articles - so
+     the sheet is a preview, not a reader. */
+
+  var sheet = null;
+  var sheetLastFocus = null;
+
+  function inAppReadingOn() {
+    return prefs.inAppReader !== false;
+  }
+
+  function closeSheet() {
+    if (!sheet) return;
+    sheet.remove();
+    sheet = null;
+    document.body.classList.remove("lb-sheet-open");
+    if (sheetLastFocus && sheetLastFocus.focus) sheetLastFocus.focus();
+    sheetLastFocus = null;
+  }
+
+  function shareArticle(url, title) {
+    if (navigator.share) {
+      navigator.share({ title: title, url: url }).catch(function () {});
+      return;
+    }
+    if (navigator.clipboard) {
+      navigator.clipboard
+        .writeText(url)
+        .then(function () {
+          toast("Link copied to clipboard.");
+        })
+        .catch(function () {});
+    }
+  }
+
+  function openSheet(li) {
+    var url = li.getAttribute("data-lb-url");
+    var link = li.querySelector(".feed-item-link a[href]");
+    if (!url || !link) return;
+
+    closeSheet();
+    sheetLastFocus = document.activeElement;
+
+    var info = meta[url] || {};
+    var title = link.textContent.trim();
+    var domain = cleanDomain(
+      (li.querySelector(".lb-source-label") || {}).textContent,
+    );
+    var author =
+      (li.querySelector(".feed-item-author") || {}).textContent || "";
+
+    sheet = document.createElement("div");
+    sheet.id = "lb-sheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    sheet.setAttribute("aria-label", title);
+
+    var panel = document.createElement("div");
+    panel.id = "lb-sheet-panel";
+
+    var head = document.createElement("div");
+    head.className = "lb-sheet-head";
+    var badge = document.createElement("span");
+    badge.className = "lb-source-badge";
+    badge.textContent = monogram(domain);
+    badge.style.setProperty("--lb-hue", hueFor(domain));
+    var src = document.createElement("span");
+    src.className = "lb-sheet-source";
+    src.textContent = info.feed ? info.feed + " · " + domain : domain;
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "lb-sheet-close";
+    close.setAttribute("aria-label", "Close");
+    close.textContent = "\u00d7";
+    close.addEventListener("click", closeSheet);
+    head.appendChild(badge);
+    head.appendChild(src);
+    head.appendChild(close);
+
+    var h = document.createElement("h2");
+    h.className = "lb-sheet-title";
+    h.textContent = title;
+
+    var sub = document.createElement("p");
+    sub.className = "lb-sheet-meta";
+    sub.textContent =
+      (info.date ? fullDate(info.date) : "") +
+      (author ? " · " + author.trim() : "");
+
+    var body = document.createElement("div");
+    body.className = "lb-sheet-body";
+    // The feed's own summary, as text - never inserted as markup.
+    var summary = String(info.content || "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    body.textContent = summary || "No preview available for this article.";
+
+    var actions = document.createElement("div");
+    actions.className = "lb-sheet-actions";
+
+    var open = document.createElement("a");
+    open.className = "lb-sheet-primary";
+    open.href = link.href;
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.textContent = "Open original \u2197";
+    open.addEventListener("click", function () {
+      markRead(url, true);
+      syncRows(url);
+      refreshDock();
+    });
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "lb-sheet-action";
+    var paintSave = function () {
+      saveBtn.textContent = savedMap[url] ? "\u2605 Saved" : "\u2606 Save";
+      saveBtn.setAttribute("aria-pressed", savedMap[url] ? "true" : "false");
+    };
+    paintSave();
+    saveBtn.addEventListener("click", function () {
+      toggleSaved(url, title, domain);
+      paintSave();
+      syncRows(url);
+      refreshDock();
+    });
+
+    var shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.className = "lb-sheet-action";
+    shareBtn.textContent = "Share";
+    shareBtn.addEventListener("click", function () {
+      shareArticle(link.href, title);
+    });
+
+    actions.appendChild(open);
+    actions.appendChild(saveBtn);
+    actions.appendChild(shareBtn);
+
+    panel.appendChild(head);
+
+    if (info.img) {
+      var hero = document.createElement("img");
+      hero.className = "lb-sheet-image";
+      hero.alt = "";
+      hero.loading = "lazy";
+      hero.addEventListener("error", function () {
+        hero.remove();
+      });
+      hero.src = info.img;
+      panel.appendChild(hero);
+    }
+
+    panel.appendChild(h);
+    panel.appendChild(sub);
+    panel.appendChild(body);
+    panel.appendChild(actions);
+    sheet.appendChild(panel);
+
+    sheet.addEventListener("click", function (event) {
+      if (event.target === sheet) closeSheet();
+    });
+
+    document.body.appendChild(sheet);
+    document.body.classList.add("lb-sheet-open");
+    close.focus();
+
+    markRead(url, true);
+    syncRows(li.getAttribute("data-lb-url"));
+    refreshDock();
+  }
 
   /* ------------------------------------------------------------------ */
   /* offline support                                                     */

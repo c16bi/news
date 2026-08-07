@@ -823,15 +823,22 @@ body.lb-offline #app::before {
 @media (max-width: 560px) {
   #lb-layout-tabs {
     bottom: 0.6rem;
-    left: 0.6rem;
-    right: 0.6rem;
+    left: 0.5rem;
+    right: 0.5rem;
     transform: none;
     justify-content: space-between;
+    /* Safety valve if a future layout name pushes past the viewport. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #lb-layout-tabs::-webkit-scrollbar {
+    display: none;
   }
   #lb-layout-tabs button {
-    flex: 1 1 0;
-    padding: 0.5rem 0.35rem;
-    font-size: 0.72rem;
+    flex: 1 1 auto;
+    padding: 0.5rem 0.3rem;
+    font-size: 0.68rem;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -1068,6 +1075,33 @@ body[data-lb-layout="reader"] #app .feed-title {
   border-bottom-color: var(--lb-hairline);
 }
 
+/* Scrolling down tucks the floating controls away; any upward scroll, or the
+   article sheet, brings them back. Pointer devices keep them permanently. */
+@media (max-width: 700px) {
+  #lb-dock,
+  #lb-layout-tabs {
+    transition:
+      transform 0.22s ease,
+      opacity 0.22s ease;
+  }
+  body.lb-chrome-hidden:not(.lb-sheet-open) #lb-dock,
+  body.lb-chrome-hidden:not(.lb-sheet-open) #lb-layout-tabs {
+    transform: translateY(140%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  body.lb-chrome-hidden:not(.lb-sheet-open) #lb-layout-tabs {
+    transform: translateY(160%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #lb-dock,
+  #lb-layout-tabs {
+    transition: none;
+  }
+}
+
 /* Room for the floating dock and layout tabs at the bottom of the viewport. */
 #app {
   padding-bottom: 8rem;
@@ -1077,4 +1111,322 @@ body[data-lb-layout="reader"] #app .feed-title {
   #app {
     padding-bottom: 10rem;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* layout: discover — image-led cards, designed phone-first            */
+/* ------------------------------------------------------------------ */
+
+body[data-lb-layout="discover"] #app .feed-item-group ul {
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 860px) {
+  body[data-lb-layout="discover"] #app .feed-item-group ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+body[data-lb-layout="discover"] #app li.feed-item {
+  align-content: start;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--lb-card-border);
+  border-radius: 14px;
+  background-color: var(--lb-card-bg);
+}
+
+/* Source line sits above the image, as in a news feed card. */
+body[data-lb-layout="discover"] #app .feed-item-domain {
+  order: 0;
+  flex: 1 0 100%;
+  padding: 0.75rem 0.9rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--lb-muted);
+}
+
+body[data-lb-layout="discover"] #app .lb-source-badge {
+  min-width: 1.5rem;
+  line-height: 1.5rem;
+  font-size: 0.7rem;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  vertical-align: -0.35em;
+}
+
+body[data-lb-layout="discover"] #app .lb-thumb {
+  order: 1;
+  flex: 1 0 100%;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  background-color: rgb(from var(--color-text) r g b / 7%);
+}
+
+body[data-lb-layout="discover"] #app .feed-item-link {
+  order: 2;
+  flex: 1 0 100%;
+  padding: 0.8rem 0.9rem 0;
+}
+
+body[data-lb-layout="discover"] #app .feed-item-link a {
+  font-size: 1.15rem;
+  line-height: 1.32;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* Without an image the headline carries the card, so give it more presence. */
+body[data-lb-layout="discover"]
+  #app
+  li.feed-item:not(.lb-has-image)
+  .feed-item-link
+  a {
+  font-size: 1.28rem;
+  line-height: 1.28;
+}
+
+body[data-lb-layout="discover"] #app .feed-item-author {
+  order: 3;
+  padding: 0.45rem 0.9rem 0;
+  flex: 1 0 100%;
+  max-width: none;
+  font-size: 0.76rem;
+}
+
+body[data-lb-layout="discover"] #app .lb-time {
+  order: 4;
+  flex: 0 0 auto;
+  width: auto;
+  text-align: left;
+  padding: 0.7rem 0 0.8rem 0.9rem;
+  font-size: 0.78rem;
+}
+
+/* A card is not a hover target the way a dense row is - the save control has
+   to be visible without pointing at it. */
+body[data-lb-layout="discover"] #app .lb-star {
+  order: 5;
+  margin: 0 0.5rem 0 auto;
+  align-self: center;
+  opacity: 0.6;
+}
+
+body[data-lb-layout="discover"] #app .feed-item:hover .lb-star,
+body[data-lb-layout="discover"] #app .lb-star:focus-visible,
+body[data-lb-layout="discover"] #app .lb-star[aria-pressed="true"] {
+  opacity: 1;
+}
+
+/* The compact layout hides the source name on narrow screens to save a line;
+   on a card it is the masthead and has to stay. */
+body[data-lb-layout="discover"] #app .lb-source-label {
+  display: inline;
+}
+
+body[data-lb-layout="discover"] #app .feed-item > .feed-item-details {
+  order: 6;
+  padding: 0 0.9rem 0.9rem;
+}
+
+body[data-lb-layout="discover"] #app .feed-item.lb-new::before {
+  left: 0.55rem;
+  top: 1.15rem;
+}
+
+body[data-lb-layout="discover"] #app li.feed-item:hover {
+  background-color: var(--lb-card-bg);
+}
+
+/* Read cards recede rather than the text going grey inside a solid card. */
+body[data-lb-layout="discover"] #app .feed-item.lb-read {
+  opacity: 0.55;
+}
+
+body[data-lb-layout="discover"] #app .feed-item.lb-read .feed-item-link a,
+body[data-lb-layout="discover"] #app .feed-item.lb-read .feed-item-author,
+body[data-lb-layout="discover"] #app .feed-item.lb-read .feed-item-domain {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* in-app article sheet                                                */
+/* ------------------------------------------------------------------ */
+
+body.lb-sheet-open {
+  overflow: hidden;
+}
+
+#lb-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1003;
+  background-color: rgb(0 0 0 / 45%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+@media (min-width: 700px) {
+  #lb-sheet {
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+}
+
+#lb-sheet-panel {
+  width: 100%;
+  max-width: 34rem;
+  max-height: 92vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background-color: var(--color-background);
+  border: 1px solid var(--lb-card-border);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 40px rgb(0 0 0 / 30%);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@media (min-width: 700px) {
+  #lb-sheet-panel {
+    border-radius: 14px;
+    border-bottom: 1px solid var(--lb-card-border);
+    box-shadow: 0 18px 50px rgb(0 0 0 / 35%);
+  }
+}
+
+.lb-sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.9rem 1rem 0.7rem;
+  position: sticky;
+  top: 0;
+  background-color: var(--color-background);
+  border-bottom: 1px solid var(--lb-hairline);
+}
+
+/* The sheet is appended to <body>, so the `#app`-scoped chip rules miss it. */
+.lb-sheet-head .lb-source-badge {
+  display: inline-block;
+  flex: 0 0 auto;
+  min-width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1.6rem;
+  margin-right: 0.55rem;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  background-color: hsl(var(--lb-hue, 210) 42% 38%);
+}
+
+body.seabreeze-theme .lb-sheet-head .lb-source-badge,
+body.sollight-theme .lb-sheet-head .lb-source-badge,
+body.plain-theme .lb-sheet-head .lb-source-badge,
+body.gameboy-theme .lb-sheet-head .lb-source-badge {
+  background-color: hsl(var(--lb-hue, 210) 38% 46%);
+}
+
+.lb-sheet-source {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--lb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb-sheet-close {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--lb-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.lb-sheet-image {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+}
+
+.lb-sheet-title {
+  font-size: 1.4rem;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  padding: 1rem 1rem 0;
+}
+
+.lb-sheet-meta {
+  padding: 0.5rem 1rem 0;
+  font-size: 0.76rem;
+  color: var(--lb-faint);
+}
+
+.lb-sheet-body {
+  padding: 0.9rem 1rem 0.4rem;
+  font-size: 0.95rem;
+  line-height: 1.62;
+  color: var(--lb-muted);
+}
+
+.lb-sheet-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  position: sticky;
+  bottom: 0;
+  background-color: var(--color-background);
+  border-top: 1px solid var(--lb-hairline);
+}
+
+.lb-sheet-primary {
+  flex: 1 1 auto;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  background-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+@media (hover: hover) {
+  .lb-sheet-primary:hover {
+    background-color: var(--color-accent);
+    filter: brightness(1.08);
+  }
+}
+
+.lb-sheet-action {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--lb-card-border);
+  background: none;
+  cursor: pointer;
+  color: var(--lb-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.lb-sheet-action[aria-pressed="true"] {
+  color: var(--color-custom);
+  border-color: var(--color-custom);
 }
