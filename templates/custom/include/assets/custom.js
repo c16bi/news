@@ -291,6 +291,111 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* publisher logos                                                     */
+  /* ------------------------------------------------------------------ */
+
+  /* Neither newsboat nor Liveboat keeps the RSS channel <image>, so the only
+     place a masthead can come from is the publisher's own site. We ask them
+     directly rather than going through a favicon service - no third party
+     learns what you read, and a refusal simply falls back to the monogram.
+
+     apple-touch-icon is tried first because it is normally 180px; favicon.ico
+     is often 16px and looks poor scaled up. The outcome per domain is cached
+     in localStorage, so failed probes are not repeated on later visits. */
+
+  var iconCache = load("icons", {});
+  var iconPending = Object.create(null);
+  var ICON_TTL_DAYS = 30;
+
+  (function pruneIcons() {
+    var cutoff = Math.floor(now / 1000) - ICON_TTL_DAYS * 86400;
+    var changed = false;
+    for (var d in iconCache) {
+      if (!iconCache[d] || !(iconCache[d].t > cutoff)) {
+        delete iconCache[d];
+        changed = true;
+      }
+    }
+    if (changed) save("icons", iconCache);
+  })();
+
+  function knownIcon(domain) {
+    var hit = iconCache[domain];
+    return hit && hit.url ? hit.url : "";
+  }
+
+  function resolveIcon(domain) {
+    if (!domain || iconPending[domain]) return;
+    if (Object.prototype.hasOwnProperty.call(iconCache, domain)) return;
+    if (!navigator.onLine) return;
+
+    iconPending[domain] = true;
+    var candidates = [
+      "https://" + domain + "/apple-touch-icon.png",
+      "https://" + domain + "/apple-touch-icon-precomposed.png",
+      "https://" + domain + "/favicon.ico",
+    ];
+    var i = 0;
+
+    function remember(url) {
+      iconCache[domain] = { url: url, t: Math.floor(Date.now() / 1000) };
+      save("icons", iconCache);
+      delete iconPending[domain];
+      if (url) schedule();
+    }
+
+    (function attempt() {
+      if (i >= candidates.length) {
+        remember("");
+        return;
+      }
+      var url = candidates[i++];
+      var probe = new Image();
+      probe.onload = function () {
+        // A 16px favicon is worse than the monogram at chip size.
+        if (probe.naturalWidth >= 32) remember(url);
+        else attempt();
+      };
+      probe.onerror = attempt;
+      probe.src = url;
+    })();
+  }
+
+  /* The monogram stays in the DOM as the resting state; a resolved logo is
+     layered over it, so nothing flashes empty and offline still shows a chip. */
+  function paintBadge(badge, domain) {
+    var url = knownIcon(domain);
+    var img = badge.querySelector(".lb-source-icon");
+
+    if (!url) {
+      if (img) img.remove();
+      badge.classList.remove("lb-has-icon");
+      resolveIcon(domain);
+      return;
+    }
+    if (img) return;
+
+    img = document.createElement("img");
+    img.className = "lb-source-icon";
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.addEventListener("error", function () {
+      img.remove();
+      badge.classList.remove("lb-has-icon");
+      // A failure while offline says nothing about the publisher - remembering
+      // it would blank a perfectly good logo until the cache expires.
+      if (navigator.onLine) {
+        iconCache[domain] = { url: "", t: Math.floor(Date.now() / 1000) };
+        save("icons", iconCache);
+      }
+    });
+    img.src = url;
+    badge.appendChild(img);
+    badge.classList.add("lb-has-icon");
+  }
+
+  /* ------------------------------------------------------------------ */
   /* per-item decoration                                                 */
   /* ------------------------------------------------------------------ */
 
@@ -369,8 +474,11 @@
 
       var badge = document.createElement("span");
       badge.className = "lb-source-badge";
-      badge.textContent = monogram(domain);
       badge.style.setProperty("--lb-hue", hueFor(domain));
+      var mono = document.createElement("span");
+      mono.className = "lb-source-mono";
+      mono.textContent = monogram(domain);
+      badge.appendChild(mono);
 
       var label = document.createElement("span");
       label.className = "lb-source-label";
@@ -379,6 +487,9 @@
       domainEl.appendChild(badge);
       domainEl.appendChild(label);
     }
+
+    var badgeEl = domainEl && domainEl.querySelector(".lb-source-badge");
+    if (badgeEl) paintBadge(badgeEl, domainEl.title || "");
 
     // --- timestamp + reading time ---
     var info = meta[url];
@@ -960,8 +1071,12 @@
     head.className = "lb-sheet-head";
     var badge = document.createElement("span");
     badge.className = "lb-source-badge";
-    badge.textContent = monogram(domain);
     badge.style.setProperty("--lb-hue", hueFor(domain));
+    var badgeMono = document.createElement("span");
+    badgeMono.className = "lb-source-mono";
+    badgeMono.textContent = monogram(domain);
+    badge.appendChild(badgeMono);
+    paintBadge(badge, domain);
     var src = document.createElement("span");
     src.className = "lb-sheet-source";
     src.textContent = info.feed ? info.feed + " · " + domain : domain;

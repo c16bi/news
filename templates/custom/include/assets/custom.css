@@ -322,6 +322,38 @@ body.gameboy-theme .lb-source-badge {
   background-color: hsl(var(--lb-hue, 210) 38% 46%);
 }
 
+/* Logo layer. The monogram sits underneath and shows through whenever a
+   publisher has no usable icon, or the reader is offline. */
+#app .lb-source-badge {
+  position: relative;
+  overflow: hidden;
+}
+
+.lb-source-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+#app .lb-source-badge.lb-has-icon {
+  /* Let the logo supply the colour rather than tinting it. */
+  background-color: #fff;
+}
+
+body.mono-theme #app .lb-source-badge.lb-has-icon,
+body.soldark-theme #app .lb-source-badge.lb-has-icon,
+body.tokyo-theme #app .lb-source-badge.lb-has-icon,
+body.sunset-theme #app .lb-source-badge.lb-has-icon {
+  background-color: rgb(255 255 255 / 92%);
+}
+
+#app .lb-source-badge.lb-has-icon .lb-source-mono {
+  visibility: hidden;
+}
+
 #app .lb-source-label {
   color: var(--lb-faint);
 }
@@ -1313,6 +1345,8 @@ body.lb-sheet-open {
 
 /* The sheet is appended to <body>, so the `#app`-scoped chip rules miss it. */
 .lb-sheet-head .lb-source-badge {
+  position: relative;
+  overflow: hidden;
   display: inline-block;
   flex: 0 0 auto;
   min-width: 1.6rem;
@@ -1332,6 +1366,14 @@ body.sollight-theme .lb-sheet-head .lb-source-badge,
 body.plain-theme .lb-sheet-head .lb-source-badge,
 body.gameboy-theme .lb-sheet-head .lb-source-badge {
   background-color: hsl(var(--lb-hue, 210) 38% 46%);
+}
+
+.lb-sheet-head .lb-source-badge.lb-has-icon {
+  background-color: #fff;
+}
+
+.lb-sheet-head .lb-source-badge.lb-has-icon .lb-source-mono {
+  visibility: hidden;
 }
 
 .lb-sheet-source {

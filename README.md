@@ -106,7 +106,8 @@ take.
   to show only saved articles.
 - **New since your last visit** — those rows get an accent-coloured timestamp
   and a dot, and the dock shows a count.
-- **Source chips** with a stable per-domain colour, replacing `(www.foo.com)`.
+- **Publisher logos** on each source chip, with a coloured monogram underneath
+  as the resting state — see below.
 - **Keyboard navigation**: `j`/`k` move, `o` or `Enter` opens, `s` saves, `m`
   toggles read, `/` focuses search, `g`/`G` jump to top/bottom, `?` shows the
   full list.
@@ -163,6 +164,27 @@ The light themes need different treatment from the dark ones: Seabreeze's accent
 (`#d7d7db`) sits within a few percent of its background (`#e1e2e7`), so
 accent-tinted surfaces and hairlines vanish. `custom.css` derives those from the
 text colour instead for `seabreeze`, `sollight`, `plain` and `gameboy`.
+
+### Publisher logos
+
+Neither newsboat nor Liveboat keeps the RSS channel `<image>`, so a masthead has
+to come from the web. `custom.js` asks the publisher's own site rather than
+going through a favicon service, so no third party learns what you read:
+
+1. `https://<domain>/apple-touch-icon.png` (normally 180px)
+2. `…/apple-touch-icon-precomposed.png`
+3. `…/favicon.ico`
+
+The first image that decodes at 32px or wider wins; anything smaller looks worse
+than the monogram, so it is rejected. The outcome per domain — including "none
+available" — is cached in `localStorage` for 30 days, so the failed probes are
+not repeated on every visit. There are only about twenty domains in the whole
+feed list.
+
+The monogram stays in the DOM underneath and shows through whenever a publisher
+has no usable icon, refuses the request, or you are offline. A load failure
+while offline is deliberately *not* remembered, since it says nothing about the
+publisher.
 
 ### Reading without leaving the app
 
