@@ -106,17 +106,100 @@ take.
   to show only saved articles.
 - **New since your last visit** — those rows get an accent-coloured timestamp
   and a dot, and the dock shows a count.
-- **Source chips** with a stable per-domain colour, replacing `(www.foo.com)`.
+- **Publisher logos** on each source chip, with a coloured monogram underneath
+  as the resting state — see below.
 - **Keyboard navigation**: `j`/`k` move, `o` or `Enter` opens, `s` saves, `m`
   toggles read, `/` focuses search, `g`/`G` jump to top/bottom, `?` shows the
   full list.
+- **Four article layouts**, switchable from the tab bar at the bottom of the
+  page or with `[` / `]`. The choice is remembered.
 - Reading progress bar, back-to-top button, focus rings, `prefers-reduced-motion`
   support and a print stylesheet.
+- **In-app article previews.** Tapping a headline opens a sheet inside the app
+  with the source, image, date and the feed's summary, plus Open original,
+  Save and Share. Toggle it with `r` or the ☐ button in the dock.
 - **Installable and offline-capable** — see below.
 
-Read state, saved articles and filter preferences live in `localStorage` under
-the `liveboat-custom:` prefix — they are per-browser and never leave the device.
-Read state older than 60 days is pruned automatically.
+Read state, saved articles, the chosen layout and filter preferences live in
+`localStorage` under the `liveboat-custom:` prefix — they are per-browser and
+never leave the device. Read state older than 60 days is pruned automatically.
+
+### Layouts
+
+| Layout | What it is |
+| --- | --- |
+| **Compact** | Dense one-line rows with a timestamp column. The default. |
+| **Cards** | Each article a bordered card; two columns from 900px up. |
+| **Digest** | The newest article in each feed leads at display size, the rest follow as a list. |
+| **Reader** | Narrow serif column, no chips or badges, feed names as uppercase kickers. |
+| **Discover** | Image-led cards in the style of a phone news feed. Phone-first. |
+
+Discover is the only layout that pulls in remote images, so nothing is fetched
+unless it is selected. Images come from each item's RSS `enclosureUrl` — the
+enclosure mime type in these feeds is unreliable (usually absent or
+`text/plain` even for JPEGs), so the file extension decides. A failed load
+removes the element rather than leaving a broken frame.
+
+**Coverage is uneven, and it follows the source rather than the topic.** Of the
+articles in a recent build, about 43% carried an image: NYT, the Guardian,
+CyclingNews and Autosport supply one nearly every time, while Bloomberg, the
+FT, the Economist and the BBC feeds supply none at all. The Finance section is
+therefore entirely text cards. Discover is built for that mix — a card with no
+image gets a larger headline instead of an empty frame.
+
+Every layout is pure CSS keyed off `data-lb-layout` on `<body>` — the DOM the
+SPA renders is identical in all four, so adding another is a block of CSS and
+one entry in the `LAYOUTS` array in `custom.js`. The attribute is used rather
+than a class because switching theme clears `body.className`.
+
+### Theme
+
+The SPA reads its theme from `localStorage` at startup and falls back to
+`default`. `custom.js` runs before it (classic script, ahead of the deferred
+module) and seeds that key with **`seabreeze`** when the reader has never chosen
+one — so a first visit is Seabreeze, and any explicit pick from the dropdown,
+including "Default Theme", wins from then on.
+
+The light themes need different treatment from the dark ones: Seabreeze's accent
+(`#d7d7db`) sits within a few percent of its background (`#e1e2e7`), so
+accent-tinted surfaces and hairlines vanish. `custom.css` derives those from the
+text colour instead for `seabreeze`, `sollight`, `plain` and `gameboy`.
+
+### Publisher logos
+
+Neither newsboat nor Liveboat keeps the RSS channel `<image>`, so a masthead has
+to come from the web. `custom.js` asks the publisher's own site rather than
+going through a favicon service, so no third party learns what you read:
+
+1. `https://<domain>/apple-touch-icon.png` (normally 180px)
+2. `…/apple-touch-icon-precomposed.png`
+3. `…/favicon.ico`
+
+The first image that decodes at 32px or wider wins; anything smaller looks worse
+than the monogram, so it is rejected. The outcome per domain — including "none
+available" — is cached in `localStorage` for 30 days, so the failed probes are
+not repeated on every visit. There are only about twenty domains in the whole
+feed list.
+
+The monogram stays in the DOM underneath and shows through whenever a publisher
+has no usable icon, refuses the request, or you are offline. A load failure
+while offline is deliberately *not* remembered, since it says nothing about the
+publisher.
+
+### Reading without leaving the app
+
+Following a link from an installed PWA hands you to the system browser, and you
+lose your place in the feed. The article sheet keeps you inside the app: it
+shows what the feed already gave us, with the original one tap away.
+
+That summary is the whole limit of it — these are RSS feeds, not full article
+text, so the sheet is a preview rather than a reader. Bloomberg supplies a solid
+paragraph, the NYT an abstract, and a few feeds nothing at all. Turn it off with
+`r` and headlines go straight to the browser again.
+
+On phones the floating dock and layout tabs slide away while you scroll down and
+return on any upward scroll, so they are not sitting on top of the feed while
+reading.
 
 ### Progressive web app
 

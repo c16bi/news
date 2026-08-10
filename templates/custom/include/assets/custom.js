@@ -69,6 +69,114 @@
   save("lastVisit", Math.floor(now / 1000));
 
   /* ------------------------------------------------------------------ */
+  /* default theme                                                       */
+  /* ------------------------------------------------------------------ */
+
+  // The SPA reads its theme from localStorage at startup and falls back to
+  // "default". This runs first (classic script, ahead of the deferred module),
+  // so seeding the key here changes the first-visit theme without touching the
+  // bundle - and only when the reader has never chosen one, so an explicit
+  // pick, including "Default Theme", is always respected afterwards.
+  var THEME_KEY = "liveboat-default-theme";
+  var DEFAULT_THEME = "seabreeze";
+  try {
+    if (localStorage.getItem(THEME_KEY) === null) {
+      localStorage.setItem(THEME_KEY, DEFAULT_THEME);
+    }
+  } catch (e) {
+    /* private mode - the SPA falls back to its own default */
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* layouts                                                             */
+  /* ------------------------------------------------------------------ */
+
+  // Each layout is pure CSS keyed off a data attribute on <body>; the DOM the
+  // SPA renders is identical in all of them. An attribute rather than a class
+  // because switching theme clears body.className.
+  var LAYOUTS = [
+    { id: "compact", label: "Compact", hint: "Dense one-line rows" },
+    {
+      id: "cards",
+      label: "Cards",
+      hint: "Roomy cards, multi-column when wide",
+    },
+    {
+      id: "digest",
+      label: "Digest",
+      hint: "Lead story per section, rest listed",
+    },
+    { id: "reader", label: "Reader", hint: "Minimal, generous type, no chips" },
+    {
+      id: "discover",
+      label: "Discover",
+      hint: "Image-led cards, best on a phone",
+    },
+  ];
+
+  // Only this layout pulls in remote images, so nothing is fetched unless the
+  // reader actually asks for it.
+  function layoutWantsImages() {
+    return currentLayout() === "discover";
+  }
+
+  function layoutIds() {
+    return LAYOUTS.map(function (l) {
+      return l.id;
+    });
+  }
+
+  function currentLayout() {
+    return layoutIds().indexOf(prefs.layout) === -1 ? "compact" : prefs.layout;
+  }
+
+  function applyLayout() {
+    document.body.setAttribute("data-lb-layout", currentLayout());
+    schedule();
+    if (!layoutTabs) return;
+    var buttons = layoutTabs.querySelectorAll("button");
+    for (var i = 0; i < buttons.length; i++) {
+      var on = buttons[i].getAttribute("data-lb-layout-id") === currentLayout();
+      buttons[i].setAttribute("aria-selected", on ? "true" : "false");
+    }
+  }
+
+  var layoutTabs = null;
+
+  function buildLayoutTabs() {
+    layoutTabs = document.createElement("div");
+    layoutTabs.id = "lb-layout-tabs";
+    layoutTabs.setAttribute("role", "tablist");
+    layoutTabs.setAttribute("aria-label", "Article layout");
+
+    LAYOUTS.forEach(function (layout) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("role", "tab");
+      b.setAttribute("data-lb-layout-id", layout.id);
+      b.textContent = layout.label;
+      b.title = layout.hint;
+      b.addEventListener("click", function () {
+        prefs.layout = layout.id;
+        save("prefs", prefs);
+        applyLayout();
+      });
+      layoutTabs.appendChild(b);
+    });
+
+    document.body.appendChild(layoutTabs);
+    applyLayout();
+  }
+
+  function cycleLayout(delta) {
+    var ids = layoutIds();
+    var next = (ids.indexOf(currentLayout()) + delta + ids.length) % ids.length;
+    prefs.layout = ids[next];
+    save("prefs", prefs);
+    applyLayout();
+  }
+
+  /* ------------------------------------------------------------------ */
   /* feed metadata harvesting                                            */
   /* ------------------------------------------------------------------ */
 
@@ -76,13 +184,30 @@
   var meta = Object.create(null);
   var metaDirty = false;
 
+  // Enclosure mime types in these feeds are unreliable - mostly absent or
+  // "text/plain" even for JPEGs - so the extension is what decides.
+  var IMAGE_RE = /\.(jpe?g|png|webp|avif|gif)(\?|#|$)/i;
+
+  function imageFor(item) {
+    var url = (item.enclosureUrl || "").trim();
+    if (!url) return "";
+    var mime = item.enclosureMime || "";
+    if (mime.indexOf("image/") === 0) return url;
+    return IMAGE_RE.test(url) ? url : "";
+  }
+
   function harvest(payload) {
     if (!payload || !payload.items || !payload.items.length) return;
     var feedName = payload.displayTitle || payload.title || "";
     for (var i = 0; i < payload.items.length; i++) {
       var it = payload.items[i];
       if (!it || !it.url || meta[it.url]) continue;
-      meta[it.url] = { date: it.date || 0, feed: feedName };
+      meta[it.url] = {
+        date: it.date || 0,
+        feed: feedName,
+        img: imageFor(it),
+        content: it.content || "",
+      };
       metaDirty = true;
     }
     if (metaDirty) schedule();
@@ -166,6 +291,111 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* publisher logos                                                     */
+  /* ------------------------------------------------------------------ */
+
+  /* Neither newsboat nor Liveboat keeps the RSS channel <image>, so the only
+     place a masthead can come from is the publisher's own site. We ask them
+     directly rather than going through a favicon service - no third party
+     learns what you read, and a refusal simply falls back to the monogram.
+
+     apple-touch-icon is tried first because it is normally 180px; favicon.ico
+     is often 16px and looks poor scaled up. The outcome per domain is cached
+     in localStorage, so failed probes are not repeated on later visits. */
+
+  var iconCache = load("icons", {});
+  var iconPending = Object.create(null);
+  var ICON_TTL_DAYS = 30;
+
+  (function pruneIcons() {
+    var cutoff = Math.floor(now / 1000) - ICON_TTL_DAYS * 86400;
+    var changed = false;
+    for (var d in iconCache) {
+      if (!iconCache[d] || !(iconCache[d].t > cutoff)) {
+        delete iconCache[d];
+        changed = true;
+      }
+    }
+    if (changed) save("icons", iconCache);
+  })();
+
+  function knownIcon(domain) {
+    var hit = iconCache[domain];
+    return hit && hit.url ? hit.url : "";
+  }
+
+  function resolveIcon(domain) {
+    if (!domain || iconPending[domain]) return;
+    if (Object.prototype.hasOwnProperty.call(iconCache, domain)) return;
+    if (!navigator.onLine) return;
+
+    iconPending[domain] = true;
+    var candidates = [
+      "https://" + domain + "/apple-touch-icon.png",
+      "https://" + domain + "/apple-touch-icon-precomposed.png",
+      "https://" + domain + "/favicon.ico",
+    ];
+    var i = 0;
+
+    function remember(url) {
+      iconCache[domain] = { url: url, t: Math.floor(Date.now() / 1000) };
+      save("icons", iconCache);
+      delete iconPending[domain];
+      if (url) schedule();
+    }
+
+    (function attempt() {
+      if (i >= candidates.length) {
+        remember("");
+        return;
+      }
+      var url = candidates[i++];
+      var probe = new Image();
+      probe.onload = function () {
+        // A 16px favicon is worse than the monogram at chip size.
+        if (probe.naturalWidth >= 32) remember(url);
+        else attempt();
+      };
+      probe.onerror = attempt;
+      probe.src = url;
+    })();
+  }
+
+  /* The monogram stays in the DOM as the resting state; a resolved logo is
+     layered over it, so nothing flashes empty and offline still shows a chip. */
+  function paintBadge(badge, domain) {
+    var url = knownIcon(domain);
+    var img = badge.querySelector(".lb-source-icon");
+
+    if (!url) {
+      if (img) img.remove();
+      badge.classList.remove("lb-has-icon");
+      resolveIcon(domain);
+      return;
+    }
+    if (img) return;
+
+    img = document.createElement("img");
+    img.className = "lb-source-icon";
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.addEventListener("error", function () {
+      img.remove();
+      badge.classList.remove("lb-has-icon");
+      // A failure while offline says nothing about the publisher - remembering
+      // it would blank a perfectly good logo until the cache expires.
+      if (navigator.onLine) {
+        iconCache[domain] = { url: "", t: Math.floor(Date.now() / 1000) };
+        save("icons", iconCache);
+      }
+    });
+    img.src = url;
+    badge.appendChild(img);
+    badge.classList.add("lb-has-icon");
+  }
+
+  /* ------------------------------------------------------------------ */
   /* per-item decoration                                                 */
   /* ------------------------------------------------------------------ */
 
@@ -199,6 +429,33 @@
     save("saved", savedMap);
   }
 
+  /* Thumbnails exist only while an image layout is active. A failed load
+     removes the element rather than leaving a broken frame - roughly half the
+     feeds here carry no enclosure at all, and remote CDNs may refuse
+     hotlinking. */
+  function syncThumb(li, info) {
+    var existing = li.querySelector(".lb-thumb");
+    if (!layoutWantsImages() || !info || !info.img) {
+      if (existing) existing.remove();
+      li.classList.remove("lb-has-image");
+      return;
+    }
+    if (existing) return;
+
+    var img = document.createElement("img");
+    img.className = "lb-thumb";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.alt = "";
+    img.addEventListener("error", function () {
+      img.remove();
+      li.classList.remove("lb-has-image");
+    });
+    img.src = info.img;
+    li.insertBefore(img, li.firstChild);
+    li.classList.add("lb-has-image");
+  }
+
   function decorateItem(li) {
     var linkWrap = li.querySelector(".feed-item-link");
     var anchor = linkWrap && linkWrap.querySelector("a[href]");
@@ -217,8 +474,11 @@
 
       var badge = document.createElement("span");
       badge.className = "lb-source-badge";
-      badge.textContent = monogram(domain);
       badge.style.setProperty("--lb-hue", hueFor(domain));
+      var mono = document.createElement("span");
+      mono.className = "lb-source-mono";
+      mono.textContent = monogram(domain);
+      badge.appendChild(mono);
 
       var label = document.createElement("span");
       label.className = "lb-source-label";
@@ -227,6 +487,9 @@
       domainEl.appendChild(badge);
       domainEl.appendChild(label);
     }
+
+    var badgeEl = domainEl && domainEl.querySelector(".lb-source-badge");
+    if (badgeEl) paintBadge(badgeEl, domainEl.title || "");
 
     // --- timestamp + reading time ---
     var info = meta[url];
@@ -256,6 +519,8 @@
       li.insertBefore(timeEl, li.firstChild);
     }
 
+    syncThumb(li, info);
+
     // --- save-for-later button ---
     if (!li.querySelector(".lb-star")) {
       var star = document.createElement("button");
@@ -264,16 +529,27 @@
       star.setAttribute("aria-pressed", savedMap[url] ? "true" : "false");
       star.title = "Save for later (s)";
       star.setAttribute("aria-label", "Save for later");
-      star.textContent = "★";
+      star.innerHTML = "<span aria-hidden='true'>★</span>";
       star.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopPropagation();
-        var titleText = anchor.textContent.trim();
+        // Vue reuses <li> nodes between renders, so the URL must be read from
+        // the DOM at click time - a closure variable can point at whichever
+        // article happened to occupy this row when the button was created.
+        var current = li.getAttribute("data-lb-url");
+        if (!current) return;
+        var link = li.querySelector(".feed-item-link a[href]");
         var dom = cleanDomain(
           (li.querySelector(".lb-source-label") || {}).textContent,
         );
-        toggleSaved(url, titleText, dom);
-        applyState(li);
+        var wasSaved = !!savedMap[current];
+        toggleSaved(current, link ? link.textContent.trim() : "", dom);
+        // In the saved-only view an unsaved row would vanish mid-click, which
+        // reads as "nothing happened". Keep it on screen until the filter is
+        // next re-applied.
+        if (wasSaved && prefs.savedOnly) li.classList.add("lb-just-unsaved");
+        else li.classList.remove("lb-just-unsaved");
+        syncRows(current);
         refreshDock();
       });
       li.appendChild(star);
@@ -281,21 +557,43 @@
 
     if (!li.hasAttribute("data-lb-bound")) {
       li.setAttribute("data-lb-bound", "");
-      anchor.addEventListener("click", function () {
-        markRead(url, true);
-        applyState(li);
+      var onOpen = function () {
+        var current = li.getAttribute("data-lb-url");
+        if (!current) return;
+        markRead(current, true);
+        syncRows(current);
         refreshDock();
+      };
+      anchor.addEventListener("click", function (event) {
+        // Modified clicks always belong to the browser.
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+          onOpen();
+          return;
+        }
+        if (inAppReadingOn()) {
+          event.preventDefault();
+          openSheet(li);
+          return;
+        }
+        onOpen();
       });
       // Middle click / cmd-click open in a background tab without firing click.
       anchor.addEventListener("auxclick", function (event) {
-        if (event.button !== 1) return;
-        markRead(url, true);
-        applyState(li);
-        refreshDock();
+        if (event.button === 1) onOpen();
       });
     }
 
     applyState(li);
+  }
+
+  /* The same article appears in both a query feed and its source feed, so a
+     state change has to reach every row showing that URL, not just the one
+     that was clicked. */
+  function syncRows(url) {
+    var rows = document.querySelectorAll(
+      '[data-lb-url="' + url.replace(/"/g, '\\"') + '"]',
+    );
+    for (var i = 0; i < rows.length; i++) applyState(rows[i]);
   }
 
   function applyState(li) {
@@ -338,7 +636,7 @@
   /* floating dock                                                       */
   /* ------------------------------------------------------------------ */
 
-  var dock, hideReadBtn, savedBtn, newBadge, topBtn;
+  var dock, hideReadBtn, savedBtn, newBadge, topBtn, readerBtn;
 
   function setPref(key, value) {
     prefs[key] = value;
@@ -349,6 +647,10 @@
     document.body.classList.toggle("lb-hide-read", !!prefs.hideRead);
     document.body.classList.toggle("lb-saved-only", !!prefs.savedOnly);
     document.body.classList.toggle("lb-scrolled", window.scrollY > 240);
+    var reprieved = document.querySelectorAll(".lb-just-unsaved");
+    for (var i = 0; i < reprieved.length; i++) {
+      reprieved[i].classList.remove("lb-just-unsaved");
+    }
     if (hideReadBtn)
       hideReadBtn.setAttribute(
         "aria-pressed",
@@ -396,6 +698,15 @@
       });
     });
 
+    readerBtn = makeDockButton(
+      "&#9744;",
+      "Open articles inside the app (r)",
+      function () {
+        setPref("inAppReader", !inAppReadingOn());
+        paintReaderBtn();
+      },
+    );
+
     var helpBtn = makeDockButton("?", "Keyboard shortcuts (?)", toggleHelp);
 
     newBadge = document.createElement("span");
@@ -405,10 +716,20 @@
     dock.appendChild(newBadge);
     dock.appendChild(savedBtn);
     dock.appendChild(hideReadBtn);
+    dock.appendChild(readerBtn);
     dock.appendChild(topBtn);
     dock.appendChild(helpBtn);
     document.body.appendChild(dock);
     applyFilters();
+    paintReaderBtn();
+  }
+
+  function paintReaderBtn() {
+    if (!readerBtn) return;
+    readerBtn.setAttribute("aria-pressed", inAppReadingOn() ? "true" : "false");
+    readerBtn.title = inAppReadingOn()
+      ? "Articles open in a preview inside the app (r)"
+      : "Articles open directly in the browser (r)";
   }
 
   function refreshDock() {
@@ -439,12 +760,25 @@
     bar.id = "lb-progress";
     document.body.appendChild(bar);
     var ticking = false;
+    var lastY = window.scrollY;
     function update() {
       ticking = false;
+      var y = window.scrollY;
       var max = document.documentElement.scrollHeight - window.innerHeight;
-      var pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+      var pct = max > 0 ? (y / max) * 100 : 0;
       bar.style.width = pct.toFixed(2) + "%";
-      document.body.classList.toggle("lb-scrolled", window.scrollY > 240);
+      document.body.classList.toggle("lb-scrolled", y > 240);
+
+      // Screen space is scarce on a phone and the floating controls sit on top
+      // of the feed. Tuck them away while reading down, bring them back on any
+      // upward scroll. The 6px threshold ignores scroll jitter.
+      if (Math.abs(y - lastY) > 6) {
+        document.body.classList.toggle(
+          "lb-chrome-hidden",
+          y > lastY && y > 160,
+        );
+        lastY = y;
+      }
     }
     window.addEventListener(
       "scroll",
@@ -538,6 +872,8 @@
       "<dt>u</dt><dd>hide articles you have read</dd>" +
       "<dt>v</dt><dd>show saved articles only</dd>" +
       "<dt>/</dt><dd>focus the search box</dd>" +
+      "<dt>r</dt><dd>open articles in-app or in the browser</dd>" +
+      "<dt>[ / ]</dt><dd>previous / next article layout</dd>" +
       "<dt>g / G</dt><dd>jump to top / bottom</dd>" +
       "<dt>Esc</dt><dd>close this panel, clear selection</dd>" +
       "<dt>?</dt><dd>toggle this panel</dd>" +
@@ -554,6 +890,10 @@
     if (event.metaKey || event.ctrlKey || event.altKey) return;
 
     if (event.key === "Escape") {
+      if (sheet) {
+        closeSheet();
+        return;
+      }
       if (helpOverlay) {
         toggleHelp();
         return;
@@ -640,12 +980,209 @@
           behavior: prefersReducedMotion() ? "auto" : "smooth",
         });
         break;
+      case "r":
+        event.preventDefault();
+        setPref("inAppReader", !inAppReadingOn());
+        paintReaderBtn();
+        break;
+      case "[":
+        event.preventDefault();
+        cycleLayout(-1);
+        break;
+      case "]":
+        event.preventDefault();
+        cycleLayout(1);
+        break;
       case "?":
         event.preventDefault();
         toggleHelp();
         break;
     }
   });
+
+  /* ------------------------------------------------------------------ */
+  /* in-app article sheet                                                */
+  /* ------------------------------------------------------------------ */
+
+  /* Opening a link from an installed PWA hands you to the system browser and
+     you lose your place. This keeps you inside the app: the sheet shows the
+     summary the feed already gave us, with the original one tap away.
+
+     The summary is all we have - these are RSS feeds, not full articles - so
+     the sheet is a preview, not a reader. */
+
+  var sheet = null;
+  var sheetLastFocus = null;
+
+  function inAppReadingOn() {
+    return prefs.inAppReader !== false;
+  }
+
+  function closeSheet() {
+    if (!sheet) return;
+    sheet.remove();
+    sheet = null;
+    document.body.classList.remove("lb-sheet-open");
+    if (sheetLastFocus && sheetLastFocus.focus) sheetLastFocus.focus();
+    sheetLastFocus = null;
+  }
+
+  function shareArticle(url, title) {
+    if (navigator.share) {
+      navigator.share({ title: title, url: url }).catch(function () {});
+      return;
+    }
+    if (navigator.clipboard) {
+      navigator.clipboard
+        .writeText(url)
+        .then(function () {
+          toast("Link copied to clipboard.");
+        })
+        .catch(function () {});
+    }
+  }
+
+  function openSheet(li) {
+    var url = li.getAttribute("data-lb-url");
+    var link = li.querySelector(".feed-item-link a[href]");
+    if (!url || !link) return;
+
+    closeSheet();
+    sheetLastFocus = document.activeElement;
+
+    var info = meta[url] || {};
+    var title = link.textContent.trim();
+    var domain = cleanDomain(
+      (li.querySelector(".lb-source-label") || {}).textContent,
+    );
+    var author =
+      (li.querySelector(".feed-item-author") || {}).textContent || "";
+
+    sheet = document.createElement("div");
+    sheet.id = "lb-sheet";
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    sheet.setAttribute("aria-label", title);
+
+    var panel = document.createElement("div");
+    panel.id = "lb-sheet-panel";
+
+    var head = document.createElement("div");
+    head.className = "lb-sheet-head";
+    var badge = document.createElement("span");
+    badge.className = "lb-source-badge";
+    badge.style.setProperty("--lb-hue", hueFor(domain));
+    var badgeMono = document.createElement("span");
+    badgeMono.className = "lb-source-mono";
+    badgeMono.textContent = monogram(domain);
+    badge.appendChild(badgeMono);
+    paintBadge(badge, domain);
+    var src = document.createElement("span");
+    src.className = "lb-sheet-source";
+    src.textContent = info.feed ? info.feed + " · " + domain : domain;
+    var close = document.createElement("button");
+    close.type = "button";
+    close.className = "lb-sheet-close";
+    close.setAttribute("aria-label", "Close");
+    close.textContent = "\u00d7";
+    close.addEventListener("click", closeSheet);
+    head.appendChild(badge);
+    head.appendChild(src);
+    head.appendChild(close);
+
+    var h = document.createElement("h2");
+    h.className = "lb-sheet-title";
+    h.textContent = title;
+
+    var sub = document.createElement("p");
+    sub.className = "lb-sheet-meta";
+    sub.textContent =
+      (info.date ? fullDate(info.date) : "") +
+      (author ? " · " + author.trim() : "");
+
+    var body = document.createElement("div");
+    body.className = "lb-sheet-body";
+    // The feed's own summary, as text - never inserted as markup.
+    var summary = String(info.content || "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    body.textContent = summary || "No preview available for this article.";
+
+    var actions = document.createElement("div");
+    actions.className = "lb-sheet-actions";
+
+    var open = document.createElement("a");
+    open.className = "lb-sheet-primary";
+    open.href = link.href;
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.textContent = "Open original \u2197";
+    open.addEventListener("click", function () {
+      markRead(url, true);
+      syncRows(url);
+      refreshDock();
+    });
+
+    var saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "lb-sheet-action";
+    var paintSave = function () {
+      saveBtn.textContent = savedMap[url] ? "\u2605 Saved" : "\u2606 Save";
+      saveBtn.setAttribute("aria-pressed", savedMap[url] ? "true" : "false");
+    };
+    paintSave();
+    saveBtn.addEventListener("click", function () {
+      toggleSaved(url, title, domain);
+      paintSave();
+      syncRows(url);
+      refreshDock();
+    });
+
+    var shareBtn = document.createElement("button");
+    shareBtn.type = "button";
+    shareBtn.className = "lb-sheet-action";
+    shareBtn.textContent = "Share";
+    shareBtn.addEventListener("click", function () {
+      shareArticle(link.href, title);
+    });
+
+    actions.appendChild(open);
+    actions.appendChild(saveBtn);
+    actions.appendChild(shareBtn);
+
+    panel.appendChild(head);
+
+    if (info.img) {
+      var hero = document.createElement("img");
+      hero.className = "lb-sheet-image";
+      hero.alt = "";
+      hero.loading = "lazy";
+      hero.addEventListener("error", function () {
+        hero.remove();
+      });
+      hero.src = info.img;
+      panel.appendChild(hero);
+    }
+
+    panel.appendChild(h);
+    panel.appendChild(sub);
+    panel.appendChild(body);
+    panel.appendChild(actions);
+    sheet.appendChild(panel);
+
+    sheet.addEventListener("click", function (event) {
+      if (event.target === sheet) closeSheet();
+    });
+
+    document.body.appendChild(sheet);
+    document.body.classList.add("lb-sheet-open");
+    close.focus();
+
+    markRead(url, true);
+    syncRows(li.getAttribute("data-lb-url"));
+    refreshDock();
+  }
 
   /* ------------------------------------------------------------------ */
   /* offline support                                                     */
@@ -735,6 +1272,7 @@
   function boot() {
     buildProgressBar();
     buildDock();
+    buildLayoutTabs();
     trackConnectivity();
     registerServiceWorker();
 
