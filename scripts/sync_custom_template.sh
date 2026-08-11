@@ -79,7 +79,7 @@ if 'rel="manifest"' not in html:
         count=1,
     )
 
-if "custom.css" not in html:
+if 'href="./assets/custom.css' not in html:
     html = re.sub(
         r'(<link rel="stylesheet" href="\./assets/index\.css[^>]*>)',
         r'\1\n    <link rel="stylesheet" href="./assets/custom.css?bt={{build_time}}">',
@@ -87,7 +87,37 @@ if "custom.css" not in html:
         count=1,
     )
 
-if "custom.js" not in html:
+if "serviceWorker" not in html:
+    recovery = (
+        "\n"
+        "    <!--\n"
+        "      Service worker recovery. This lives inline in the HTML on purpose: the\n"
+        "      page is served network-first, so this snippet is always the newest code\n"
+        "      even when the worker is handing out a stale cached custom.js. Asking the\n"
+        "      registration to update, and reloading the moment a new worker claims the\n"
+        "      page, is what rescues a browser pinned to an old build - the cached\n"
+        "      bundle cannot rescue itself.\n"
+        "    -->\n"
+        "    <script>\n"
+        "      (function () {\n"
+        '        if (!("serviceWorker" in navigator)) return;\n'
+        "        var reloaded = false;\n"
+        '        navigator.serviceWorker.addEventListener("controllerchange", function () {\n'
+        "          if (reloaded) return;\n"
+        "          reloaded = true;\n"
+        "          location.reload();\n"
+        "        });\n"
+        "        navigator.serviceWorker.getRegistration().then(function (reg) {\n"
+        "          if (reg) reg.update();\n"
+        "        }).catch(function () {});\n"
+        "      })();\n"
+        "    </script>"
+    )
+    html = html.replace(
+        '<div id="app"></div>', '<div id="app"></div>\n' + recovery, 1
+    )
+
+if 'src="./assets/custom.js' not in html:
     block = (
         "<!--\n"
         "      custom.js is a classic script so it runs before the deferred module\n"
@@ -106,7 +136,14 @@ if "custom.js" not in html:
 open(path, "w", encoding="utf-8").write(html)
 
 missing = [
-    n for n in ("custom.css", "custom.js", 'rel="manifest"') if n not in html
+    n
+    for n in (
+        'href="./assets/custom.css',
+        'src="./assets/custom.js',
+        'rel="manifest"',
+        "controllerchange",
+    )
+    if n not in html
 ]
 if missing:
     sys.exit("error: failed to inject " + ", ".join(missing) + " into index.hbs")
