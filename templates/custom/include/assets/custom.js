@@ -732,7 +732,58 @@
       : "Articles open directly in the browser (r)";
   }
 
+  /* A filter that hides every article looks identical to a broken page, and
+     the only way out was a keyboard shortcut that phones do not have. Say what
+     happened and offer a way back. */
+  function refreshEmptyState() {
+    var el = document.getElementById("lb-empty");
+    var filtering = !!(prefs.savedOnly || prefs.hideRead);
+    var items = document.querySelectorAll(".feed-item");
+    var anyVisible = Array.prototype.some.call(items, function (li) {
+      return li.offsetParent !== null;
+    });
+
+    if (!filtering || !items.length || anyVisible) {
+      if (el) el.remove();
+      return;
+    }
+
+    var heading = prefs.savedOnly
+      ? "No saved articles yet"
+      : "You have read everything here";
+    var detail = prefs.savedOnly
+      ? "Tap the \u2605 on any article to save it for later."
+      : "Turn the filter off to see articles you have already opened.";
+
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "lb-empty";
+      var h = document.createElement("p");
+      h.className = "lb-empty-title";
+      var d = document.createElement("p");
+      d.className = "lb-empty-detail";
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "lb-empty-action";
+      b.textContent = "Show all articles";
+      b.addEventListener("click", function () {
+        setPref("savedOnly", false);
+        setPref("hideRead", false);
+        applyFilters();
+        schedule();
+      });
+      el.appendChild(h);
+      el.appendChild(d);
+      el.appendChild(b);
+      var app = document.getElementById("app");
+      (app || document.body).appendChild(el);
+    }
+    el.querySelector(".lb-empty-title").textContent = heading;
+    el.querySelector(".lb-empty-detail").textContent = detail;
+  }
+
   function refreshDock() {
+    refreshEmptyState();
     if (!newBadge) return;
     var count = document.querySelectorAll(".feed-item.lb-new").length;
     if (count > 0 && lastVisit) {

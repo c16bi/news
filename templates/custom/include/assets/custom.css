@@ -512,12 +512,49 @@ body.lb-saved-only
 
 body.lb-saved-only #app .filter-container::after,
 body.lb-hide-read #app .filter-container::after {
-  content: "Filtered view — press v or u to clear";
+  content: "Filtered view";
   display: block;
   clear: both;
   padding-top: 0.6rem;
   font-size: 0.75rem;
+  font-weight: 700;
   color: var(--color-custom);
+}
+
+/* Shown when a filter has hidden every article - otherwise the page is
+   indistinguishable from one that failed to load. */
+#lb-empty {
+  margin: 2rem auto 3rem;
+  max-width: 24rem;
+  padding: 1.6rem 1.25rem;
+  border: 1px solid var(--lb-card-border);
+  border-radius: 12px;
+  background-color: var(--lb-card-bg);
+  text-align: center;
+}
+
+.lb-empty-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.lb-empty-detail {
+  font-size: 0.85rem;
+  color: var(--lb-muted);
+  margin-bottom: 1.1rem;
+}
+
+.lb-empty-action {
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  background-color: var(--color-accent);
+  color: var(--color-text);
 }
 
 /* Day dividers in the left margin of a single-feed view. */
