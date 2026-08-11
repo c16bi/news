@@ -1239,6 +1239,17 @@
     var base = window.sitePath || "/";
     if (base.charAt(base.length - 1) !== "/") base += "/";
 
+    /* When a new worker claims the page, the assets already on screen were
+       served by the old one. Reload once so everything comes from the new
+       worker - without this the swap takes an extra visit or two to show up,
+       which is indistinguishable from "the update never arrived". */
+    var reloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (reloading) return;
+      reloading = true;
+      location.reload();
+    });
+
     navigator.serviceWorker
       .register(base + "sw.js", { scope: base })
       .then(function (registration) {
