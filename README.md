@@ -103,7 +103,9 @@ take.
 - **Read tracking.** Opening an article dims it. Press `u` (or the ◎ button) to
   hide everything you have read.
 - **Save for later.** Click the ★ on any row, then press `v` (or the ★ button)
-  to show only saved articles.
+  to show only saved articles. If a filter ends up hiding every article, the
+  page says so and offers a "Show all articles" button rather than just going
+  blank.
 - **New since your last visit** — those rows get an accent-coloured timestamp
   and a dot, and the dock shows a count.
 - **Publisher logos** on each source chip, with a coloured monogram underneath
