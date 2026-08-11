@@ -98,6 +98,29 @@
       <div id="app"></div>
 
     <!--
+      Service worker recovery. This lives inline in the HTML on purpose: the
+      page is served network-first, so this snippet is always the newest code
+      even when the worker is handing out a stale cached custom.js. Asking the
+      registration to update, and reloading the moment a new worker claims the
+      page, is what rescues a browser pinned to an old build - the cached
+      bundle cannot rescue itself.
+    -->
+    <script>
+      (function () {
+        if (!("serviceWorker" in navigator)) return;
+        var reloaded = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function () {
+          if (reloaded) return;
+          reloaded = true;
+          location.reload();
+        });
+        navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (reg) reg.update();
+        }).catch(function () {});
+      })();
+    </script>
+
+    <!--
       custom.js is a classic script so it runs before the deferred module
       below: it needs to wrap `fetch` before the SPA issues its first request.
     -->

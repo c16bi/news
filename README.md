@@ -222,7 +222,22 @@ cache-busts with query strings rather than hashed filenames:
 | `feeds/*`, `channels/*` | Network first, cached copy as the offline fallback |
 
 So online you always read current news; offline you read whatever you last
-loaded, with an "Offline" banner at the top of the page. The feed cache is
+loaded, with an "Offline" banner at the top of the page.
+
+Asset matching is deliberately **exact**, not `ignoreSearch`. Because Liveboat
+cache-busts with `?bt=<build time>`, an exact match means "same build", so a
+hit is known-current and a new build correctly misses and goes to the network.
+Matching loosely lets the first entry the cache ever saw answer for every later
+build, which pins the reader to it permanently — that is exactly what v1 of the
+worker did. `ignoreSearch` survives only as the offline fallback, where a stale
+asset beats none, and each write drops the other variants of that path so the
+cache holds one copy per asset.
+
+`index.hbs` also carries a small inline recovery snippet. It has to be inline:
+the page is served network-first, so that snippet is always the newest code
+even while the worker is handing out a stale `custom.js`. It asks the
+registration to update and reloads the moment a new worker claims the page —
+a cached bundle cannot rescue itself. The feed cache is
 capped at 60 entries and old cache versions are deleted on activation. When a
 new worker takes over an existing one, a toast offers a reload rather than
 pulling the page out from under you.

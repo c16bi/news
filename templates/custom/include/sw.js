@@ -17,7 +17,10 @@
  * whatever you last loaded.
  */
 
-var VERSION = "v1";
+/* Bumping this discards every cache from the previous version on activate.
+   v1 shipped with a loose asset match that pinned readers to the first build
+   its cache ever saw, so those caches must be thrown away, not migrated. */
+var VERSION = "v2";
 var SHELL_CACHE = VERSION + "-shell";
 var DATA_CACHE = VERSION + "-data";
 var MAX_DATA_ENTRIES = 60;
@@ -117,18 +120,55 @@ function networkFirst(request, cacheName, fallbackUrl) {
     });
 }
 
+/* Drop every other cached variant of this path before storing the new one.
+   Liveboat cache-busts with ?bt=<build time>, so without this the cache
+   accumulates one entry per build and never lets the old ones go. */
+function putAssetFresh(cache, request, response) {
+  var path = new URL(request.url).pathname;
+  return cache
+    .keys()
+    .then(function (keys) {
+      return Promise.all(
+        keys
+          .filter(function (key) {
+            return (
+              new URL(key.url).pathname === path && key.url !== request.url
+            );
+          })
+          .map(function (key) {
+            return cache.delete(key);
+          }),
+      );
+    })
+    .then(function () {
+      return cache.put(request, response);
+    });
+}
+
+/* Matching has to be exact, not ignoreSearch.
+   ?bt= changes on every build, so an exact match means "same build" - a hit is
+   known-current and a new build correctly misses and goes to the network.
+   Matching loosely would let the first entry ever cached answer for every
+   later build, pinning the reader to it permanently. ignoreSearch survives
+   only as the offline fallback, where a stale asset beats none. */
 function staleWhileRevalidate(request, cacheName) {
   return caches.open(cacheName).then(function (cache) {
-    return cache.match(request, { ignoreSearch: true }).then(function (hit) {
+    return cache.match(request).then(function (exact) {
       var network = fetch(request)
         .then(function (response) {
-          if (response && response.ok) cache.put(request, response.clone());
+          if (response && response.ok) {
+            putAssetFresh(cache, request, response.clone());
+          }
           return response;
         })
         .catch(function () {
-          return hit || Response.error();
+          return cache
+            .match(request, { ignoreSearch: true })
+            .then(function (any) {
+              return any || Response.error();
+            });
         });
-      return hit || network;
+      return exact || network;
     });
   });
 }
