@@ -68,6 +68,14 @@ jobs:
       - name: Run liveboat
         run: ./bin/liveboat --template-path templates/custom --config-file config/liveboat-config.toml
 
+      # Roughly half these feeds publish no media in their RSS, so the picture
+      # is read off the article page instead. Cached in config/image-cache.json
+      # so each article is fetched once, not once an hour. Never fails the
+      # build: an article with no image simply keeps its typographic treatment.
+      - name: Harvest article images
+        run: python3 ./scripts/harvest_images.py || true
+        shell: bash
+
       - name: Truncate database
         run: |
           ./scripts/truncate_db ${{ env.NEWSBOAT_CACHE_RETENTION_DAYS }}
@@ -77,7 +85,7 @@ jobs:
       - name: Commit files
         id: commit
         run: |
-          git add ./docs
+          git add ./docs ./config/image-cache.json
           let ts=$(date +"%s")
           git diff-index --quiet HEAD || git commit -m "Feed rebuild @ ${ts}" -a
         shell: bash
