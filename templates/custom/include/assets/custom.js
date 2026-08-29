@@ -189,6 +189,12 @@
   var IMAGE_RE = /\.(jpe?g|png|webp|avif|gif)(\?|#|$)/i;
 
   function imageFor(item) {
+    // lbImage is added at build time by scripts/harvest_images.py, which reads
+    // the article's og:image for the roughly half of these feeds that publish
+    // no media in their RSS. Absent for anything it could not reach, so the
+    // enclosure stays the fallback and no image at all stays valid.
+    var harvested = (item.lbImage || "").trim();
+    if (harvested) return harvested;
     var url = (item.enclosureUrl || "").trim();
     if (!url) return "";
     var mime = item.enclosureMime || "";
