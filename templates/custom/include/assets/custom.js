@@ -112,12 +112,31 @@
       label: "Discover",
       hint: "Image-led cards, best on a phone",
     },
+    {
+      id: "e1",
+      label: "Mixed",
+      hint: "Newsprint. Newest first; pictures where they exist",
+    },
+    {
+      id: "e2",
+      label: "Leads",
+      hint: "Newsprint. Each section opens with its best picture",
+    },
   ];
 
-  // Only this layout pulls in remote images, so nothing is fetched unless the
-  // reader actually asks for it.
+  // Layouts that show pictures. Everything else leaves remote images alone, so
+  // nothing is fetched unless the reader has actually asked to see them.
+  var IMAGE_LAYOUTS = { discover: 1, e1: 1, e2: 1 };
+
   function layoutWantsImages() {
-    return currentLayout() === "discover";
+    return !!IMAGE_LAYOUTS[currentLayout()];
+  }
+
+  // e1 and e2 replace the palette and typography wholesale rather than tinting
+  // the active theme, so the theme control is meaningless while one is on.
+  function layoutOwnsSkin() {
+    var id = currentLayout();
+    return id === "e1" || id === "e2";
   }
 
   function layoutIds() {
@@ -132,7 +151,9 @@
 
   function applyLayout() {
     document.body.setAttribute("data-lb-layout", currentLayout());
+    document.body.classList.toggle("lb-own-skin", layoutOwnsSkin());
     schedule();
+    syncThemeRow();
     if (!layoutTabs) return;
     var buttons = layoutTabs.querySelectorAll("button");
     for (var i = 0; i < buttons.length; i++) {
@@ -143,7 +164,7 @@
 
   var layoutTabs = null;
 
-  function buildLayoutTabs() {
+  function buildLayoutTabs(host) {
     layoutTabs = document.createElement("div");
     layoutTabs.id = "lb-layout-tabs";
     layoutTabs.setAttribute("role", "tablist");
@@ -154,8 +175,14 @@
       b.type = "button";
       b.setAttribute("role", "tab");
       b.setAttribute("data-lb-layout-id", layout.id);
-      b.textContent = layout.label;
-      b.title = layout.hint;
+      var name = document.createElement("span");
+      name.className = "lb-layout-name";
+      name.textContent = layout.label;
+      var hint = document.createElement("span");
+      hint.className = "lb-layout-hint";
+      hint.textContent = layout.hint;
+      b.appendChild(name);
+      b.appendChild(hint);
       b.addEventListener("click", function () {
         prefs.layout = layout.id;
         save("prefs", prefs);
@@ -164,7 +191,7 @@
       layoutTabs.appendChild(b);
     });
 
-    document.body.appendChild(layoutTabs);
+    host.appendChild(layoutTabs);
     applyLayout();
   }
 
@@ -439,9 +466,18 @@
      removes the element rather than leaving a broken frame - roughly half the
      feeds here carry no enclosure at all, and remote CDNs may refuse
      hotlinking. */
+  /* e2 shows one picture per section, so it loads one picture per section.
+     Every other row in that layout is a text line and never asks the network
+     for anything. */
+  function wantsThumb(li) {
+    if (!layoutWantsImages()) return false;
+    if (currentLayout() === "e2") return li.classList.contains("lb-lead");
+    return true;
+  }
+
   function syncThumb(li, info) {
     var existing = li.querySelector(".lb-thumb");
-    if (!layoutWantsImages() || !info || !info.img) {
+    if (!wantsThumb(li) || !info || !info.img) {
       if (existing) existing.remove();
       li.classList.remove("lb-has-image");
       return;
@@ -460,6 +496,173 @@
     img.src = info.img;
     li.insertBefore(img, li.firstChild);
     li.classList.add("lb-has-image");
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* swipe gestures                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /* Swipe right saves, swipe left marks read - the two things worth doing to a
+     headline without opening it, on the hand that is already holding the
+     phone.
+
+     Vertical scrolling is left entirely to the browser: `touch-action: pan-y`
+     on the row means the compositor keeps handling up and down at full speed
+     and only hands us horizontal movement, so there is no preventDefault here
+     and no way for this to make the feed feel heavy. */
+
+  var SWIPE_TRIGGER = 72; // px of travel that commits the action
+  var SWIPE_CLAIM = 12; // px before we decide the gesture is ours
+  var SWIPE_MAX = 120; // rubber-band ceiling
+
+  function swipeHint(li) {
+    var hint = li.querySelector(".lb-swipe-hint");
+    if (!hint) {
+      hint = document.createElement("span");
+      hint.className = "lb-swipe-hint";
+      hint.setAttribute("aria-hidden", "true");
+      li.appendChild(hint);
+    }
+    return hint;
+  }
+
+  function endSwipe(li, offset) {
+    li.style.transform = offset ? "translateX(" + offset + "px)" : "";
+    li.classList.toggle("lb-swiping", offset !== 0);
+    if (!offset) li.removeAttribute("data-lb-swipe");
+  }
+
+  function bindGestures(li) {
+    var startX = 0;
+    var startY = 0;
+    var offset = 0;
+    var claimed = false;
+    var settled = false;
+
+    li.addEventListener(
+      "touchstart",
+      function (event) {
+        if (event.touches.length !== 1) {
+          settled = true;
+          return;
+        }
+        // A touch that begins on the star is a tap on the star.
+        if (event.target.closest && event.target.closest(".lb-star")) {
+          settled = true;
+          return;
+        }
+        settled = false;
+        claimed = false;
+        offset = 0;
+        startX = event.touches[0].clientX;
+        startY = event.touches[0].clientY;
+      },
+      { passive: true },
+    );
+
+    li.addEventListener(
+      "touchmove",
+      function (event) {
+        if (settled || event.touches.length !== 1) return;
+        var dx = event.touches[0].clientX - startX;
+        var dy = event.touches[0].clientY - startY;
+
+        if (!claimed) {
+          // Ambiguous until one axis clearly wins; a diagonal drag belongs to
+          // the scroller, not to us.
+          if (Math.abs(dy) > Math.abs(dx)) {
+            settled = true;
+            return;
+          }
+          if (Math.abs(dx) < SWIPE_CLAIM) return;
+          claimed = true;
+          li.classList.add("lb-swiping");
+        }
+
+        // Resist past the trigger point so the row cannot be flung off screen
+        // and the commit distance stays findable by feel.
+        offset = dx;
+        if (Math.abs(offset) > SWIPE_TRIGGER) {
+          var over = Math.abs(offset) - SWIPE_TRIGGER;
+          offset =
+            (offset < 0 ? -1 : 1) *
+            Math.min(SWIPE_MAX, SWIPE_TRIGGER + over * 0.35);
+        }
+
+        var hint = swipeHint(li);
+        var action = offset > 0 ? "save" : "read";
+        var armed = Math.abs(offset) >= SWIPE_TRIGGER;
+        li.setAttribute("data-lb-swipe", action);
+        li.classList.toggle("lb-swipe-armed", armed);
+
+        var url = li.getAttribute("data-lb-url");
+        if (action === "save") {
+          hint.textContent = savedMap[url] ? "★ Unsave" : "★ Save";
+        } else {
+          hint.textContent = readMap[url] ? "◎ Unread" : "◎ Read";
+        }
+
+        li.style.transform = "translateX(" + offset + "px)";
+      },
+      { passive: true },
+    );
+
+    var finish = function () {
+      if (settled || !claimed) {
+        endSwipe(li, 0);
+        li.classList.remove("lb-swipe-armed");
+        return;
+      }
+      var committed = Math.abs(offset) >= SWIPE_TRIGGER;
+      var action = offset > 0 ? "save" : "read";
+      endSwipe(li, 0);
+      li.classList.remove("lb-swipe-armed");
+      claimed = false;
+      if (!committed) return;
+
+      // Read the URL now, not at bind time: Vue recycles these rows.
+      var url = li.getAttribute("data-lb-url");
+      if (!url) return;
+
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(8);
+        } catch (e) {
+          /* vibration is a nicety and is blocked in some contexts */
+        }
+      }
+
+      if (action === "save") {
+        var link = li.querySelector(".feed-item-link a[href]");
+        var dom = cleanDomain(
+          (li.querySelector(".lb-source-label") || {}).textContent,
+        );
+        var wasSaved = !!savedMap[url];
+        toggleSaved(url, link ? link.textContent.trim() : "", dom);
+        if (wasSaved && prefs.savedOnly) li.classList.add("lb-just-unsaved");
+        toast(wasSaved ? "Removed from saved" : "Saved", "Undo", function () {
+          toggleSaved(url, link ? link.textContent.trim() : "", dom);
+          syncRows(url);
+          refreshDock();
+        });
+      } else {
+        var wasRead = !!readMap[url];
+        markRead(url, !wasRead);
+        // Marking read under an active hide-read filter removes the row from
+        // under the thumb; say what happened and offer it back.
+        if (!wasRead && prefs.hideRead) li.classList.add("lb-just-unsaved");
+        toast(wasRead ? "Marked unread" : "Marked read", "Undo", function () {
+          markRead(url, wasRead);
+          syncRows(url);
+          refreshDock();
+        });
+      }
+      syncRows(url);
+      refreshDock();
+    };
+
+    li.addEventListener("touchend", finish, { passive: true });
+    li.addEventListener("touchcancel", finish, { passive: true });
   }
 
   function decorateItem(li) {
@@ -563,6 +766,7 @@
 
     if (!li.hasAttribute("data-lb-bound")) {
       li.setAttribute("data-lb-bound", "");
+      bindGestures(li);
       var onOpen = function () {
         var current = li.getAttribute("data-lb-url");
         if (!current) return;
@@ -614,6 +818,78 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* section leads (e2)                                                  */
+  /* ------------------------------------------------------------------ */
+
+  /* e2 opens each section with a picture. The one it picks is the newest story
+     in that section that actually has an image, which is rarely the newest
+     story overall - so the lead has to be hoisted past its neighbours.
+
+     That hoisting is done with CSS `order`, never by moving nodes. The SPA owns
+     this subtree and re-renders it from its own state; a node moved here would
+     be moved back, and worse, the row would carry another article's decoration
+     when it landed. Setting `order` on a flex column leaves the DOM exactly as
+     Vue wrote it.
+
+     Sections where nothing has a picture - Bloomberg, the FT, the Economist,
+     which publish no images and refuse the build's request for one - are
+     labelled rather than left looking broken. */
+  /* Whether this row has a picture is answered from the harvested metadata,
+     not from whether an <img> is on the page. That ordering matters: e2 loads
+     a picture only for the row it is about to promote, so asking the DOM would
+     mean loading two hundred images to discover which five to show. */
+  function itemImage(li) {
+    var anchor = li.querySelector(".feed-item-link a[href]");
+    if (!anchor) return "";
+    var info = meta[anchor.href];
+    return info && info.img ? info.img : "";
+  }
+
+  function markSections() {
+    var wrappers = document.querySelectorAll(".feed-wrapper");
+    var leadWanted = currentLayout() === "e2";
+
+    for (var i = 0; i < wrappers.length; i++) {
+      var wrapper = wrappers[i];
+      var items = wrapper.querySelectorAll(".feed-item");
+      var lead = null;
+      var withImage = 0;
+
+      for (var j = 0; j < items.length; j++) {
+        var li = items[j];
+        var hasImage = !!itemImage(li);
+        if (hasImage) withImage++;
+        // Only a visible row may lead: a filter can hide the natural pick.
+        if (leadWanted && !lead && hasImage && li.offsetParent !== null) {
+          lead = li;
+        }
+      }
+
+      for (var k = 0; k < items.length; k++) {
+        items[k].classList.toggle("lb-lead", items[k] === lead);
+      }
+
+      wrapper.classList.toggle("lb-section-nopix", leadWanted && !withImage);
+      syncNoPixNote(wrapper, leadWanted && !withImage && items.length > 0);
+    }
+  }
+
+  function syncNoPixNote(wrapper, wanted) {
+    var title = wrapper.querySelector(".feed-title");
+    if (!title) return;
+    var note = title.querySelector(".lb-nopix-note");
+    if (!wanted) {
+      if (note) note.remove();
+      return;
+    }
+    if (note) return;
+    note = document.createElement("span");
+    note.className = "lb-nopix-note";
+    note.textContent = "no pictures in this feed";
+    title.appendChild(note);
+  }
+
+  /* ------------------------------------------------------------------ */
   /* scheduling: re-decorate whenever the SPA re-renders                 */
   /* ------------------------------------------------------------------ */
 
@@ -622,6 +898,13 @@
   function decorateAll() {
     frame = null;
     metaDirty = false;
+    // Leads first: which row leads decides which row loads a picture, so the
+    // per-item pass needs the answer before it runs.
+    try {
+      markSections();
+    } catch (e) {
+      /* leads are decoration; never let them break the feed */
+    }
     var items = document.querySelectorAll(".feed-item");
     for (var i = 0; i < items.length; i++) {
       try {
@@ -630,6 +913,7 @@
         /* one bad row must not stop the rest */
       }
     }
+    ensureNativeProxies();
     refreshDock();
   }
 
@@ -642,7 +926,7 @@
   /* floating dock                                                       */
   /* ------------------------------------------------------------------ */
 
-  var dock, hideReadBtn, savedBtn, newBadge, topBtn, readerBtn;
+  var dock, newBadge;
 
   function setPref(key, value) {
     prefs[key] = value;
@@ -657,85 +941,340 @@
     for (var i = 0; i < reprieved.length; i++) {
       reprieved[i].classList.remove("lb-just-unsaved");
     }
-    if (hideReadBtn)
-      hideReadBtn.setAttribute(
-        "aria-pressed",
-        prefs.hideRead ? "true" : "false",
-      );
-    if (savedBtn)
-      savedBtn.setAttribute("aria-pressed", prefs.savedOnly ? "true" : "false");
+    syncSettings();
   }
 
-  function makeDockButton(label, title, onClick) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.className = "lb-dock-btn";
-    b.innerHTML = label;
-    b.title = title;
-    b.setAttribute("aria-label", title);
-    b.addEventListener("click", onClick);
-    return b;
+  /* Everything that is a setting lives behind one button.
+
+     Before this there were two stacked bars pinned over the feed - five filter
+     buttons and five layout tabs - plus the template's own theme dropdown and
+     time-range row at the top. Four rows of controls around one column of
+     headlines, all of it permanently on screen for choices made roughly never.
+     The controls are all still here; they are just no longer the first thing
+     you see. Swipes now cover the two that get used constantly, so the button
+     is genuinely a settings button rather than a hidden toolbar. */
+
+  function makeToggleRow(label, detail, isOn, onToggle) {
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "lb-set-row";
+    row.setAttribute("role", "switch");
+
+    var text = document.createElement("span");
+    text.className = "lb-set-text";
+    var name = document.createElement("span");
+    name.className = "lb-set-name";
+    name.textContent = label;
+    var hint = document.createElement("span");
+    hint.className = "lb-set-hint";
+    hint.textContent = detail;
+    text.appendChild(name);
+    text.appendChild(hint);
+
+    var knob = document.createElement("span");
+    knob.className = "lb-set-knob";
+    knob.setAttribute("aria-hidden", "true");
+
+    row.appendChild(text);
+    row.appendChild(knob);
+    row.addEventListener("click", function () {
+      onToggle();
+      row.setAttribute("aria-checked", isOn() ? "true" : "false");
+      syncSettings();
+    });
+    row.setAttribute("aria-checked", isOn() ? "true" : "false");
+    row._lbSync = function () {
+      row.setAttribute("aria-checked", isOn() ? "true" : "false");
+    };
+    return row;
   }
 
-  function buildDock() {
-    dock = document.createElement("div");
-    dock.id = "lb-dock";
+  function sheetSection(host, title, slug) {
+    var h = document.createElement("h3");
+    h.className = "lb-set-heading";
+    h.textContent = title;
+    host.appendChild(h);
+    var box = document.createElement("div");
+    box.className = "lb-set-group" + (slug ? " lb-set-group-" + slug : "");
+    host.appendChild(box);
+    return box;
+  }
 
-    savedBtn = makeDockButton("★", "Show saved articles only (v)", function () {
-      setPref("savedOnly", !prefs.savedOnly);
-      if (prefs.savedOnly) setPref("hideRead", false);
-      applyFilters();
+  /* The template's own theme <select> and time-range buttons are hidden rather
+     than removed, and driven from here. They belong to the SPA: it re-renders
+     them and reads their state, so the reliable way to change one is to change
+     the real control and let the SPA notice, exactly as a click would. */
+  function nativeThemeSelect() {
+    return document.querySelector("#theme-selector select");
+  }
+
+  function syncThemeRow() {
+    var row = document.getElementById("lb-theme-row");
+    if (!row) return;
+    row.hidden = layoutOwnsSkin();
+    var select = row.querySelector("select");
+    var native = nativeThemeSelect();
+    if (select && native && select.value !== native.value) {
+      select.value = native.value;
+    }
+  }
+
+  function buildThemeRow(host) {
+    var native = nativeThemeSelect();
+    if (!native) return;
+
+    var row = document.createElement("div");
+    row.id = "lb-theme-row";
+    row.className = "lb-set-row lb-set-row-static";
+
+    var text = document.createElement("span");
+    text.className = "lb-set-text";
+    var name = document.createElement("span");
+    name.className = "lb-set-name";
+    name.textContent = "Theme";
+    var hint = document.createElement("span");
+    hint.className = "lb-set-hint";
+    hint.textContent = "Colours for the list layouts";
+    text.appendChild(name);
+    text.appendChild(hint);
+
+    var select = document.createElement("select");
+    select.className = "lb-set-select";
+    select.setAttribute("aria-label", "Theme");
+    for (var i = 0; i < native.options.length; i++) {
+      var opt = document.createElement("option");
+      opt.value = native.options[i].value;
+      opt.textContent = native.options[i].textContent;
+      select.appendChild(opt);
+    }
+    select.value = native.value;
+    select.addEventListener("change", function () {
+      native.value = select.value;
+      native.dispatchEvent(new Event("change", { bubbles: true }));
     });
 
-    hideReadBtn = makeDockButton(
-      "◎",
-      "Hide articles you have read (u)",
-      function () {
-        setPref("hideRead", !prefs.hideRead);
-        if (prefs.hideRead) setPref("savedOnly", false);
-        applyFilters();
-      },
+    row.appendChild(text);
+    row.appendChild(select);
+    host.appendChild(row);
+    syncThemeRow();
+  }
+
+  /* Firehose / Last day / Last 50 / Last 20 - the template's own row, mirrored
+     as real buttons that click the originals. */
+  function buildRangeRow(host) {
+    var boxes = document.querySelectorAll(".filter-container .filter-box");
+    if (!boxes.length) return;
+
+    var row = document.createElement("div");
+    row.id = "lb-range-row";
+    row.setAttribute("role", "group");
+    row.setAttribute("aria-label", "How much to show");
+
+    for (var i = 0; i < boxes.length; i++) {
+      (function (nativeBtn) {
+        if (!nativeBtn) return;
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "lb-range-btn";
+        b.textContent = (nativeBtn.textContent || "").trim();
+        b.addEventListener("click", function () {
+          nativeBtn.click();
+          window.setTimeout(syncSettings, 0);
+        });
+        b._lbNative = nativeBtn;
+        row.appendChild(b);
+      })(boxes[i].querySelector("button"));
+    }
+    host.appendChild(row);
+  }
+
+  function syncRangeRow() {
+    var row = document.getElementById("lb-range-row");
+    if (!row) return;
+    var buttons = row.querySelectorAll(".lb-range-btn");
+    for (var i = 0; i < buttons.length; i++) {
+      var native = buttons[i]._lbNative;
+      var on = !!(native && native.classList.contains("selected"));
+      buttons[i].setAttribute("aria-pressed", on ? "true" : "false");
+    }
+  }
+
+  /* The theme <select> and the range buttons are rendered by the SPA, which
+     has usually not run by the time the sheet is built - and re-renders them
+     later besides. So the mirrors are created the first time their originals
+     actually exist, and re-created if a render throws them away. */
+  function ensureNativeProxies() {
+    if (!settingsSheet) return;
+    var look = settingsSheet.querySelector(".lb-set-group-appearance");
+    if (look && !document.getElementById("lb-theme-row")) buildThemeRow(look);
+
+    var show = settingsSheet.querySelector(".lb-set-group-show");
+    var range = document.getElementById("lb-range-row");
+    if (show && (!range || !range.querySelector(".lb-range-btn"))) {
+      if (range) range.remove();
+      buildRangeRow(show);
+    }
+  }
+
+  function syncSettings() {
+    var rows = document.querySelectorAll(".lb-set-row[role='switch']");
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i]._lbSync) rows[i]._lbSync();
+    }
+    syncRangeRow();
+    syncThemeRow();
+  }
+
+  var settingsSheet = null;
+
+  function settingsOpen() {
+    return !!(settingsSheet && !settingsSheet.hidden);
+  }
+
+  function toggleSettings(force) {
+    if (!settingsSheet) return;
+    var open = typeof force === "boolean" ? force : !settingsOpen();
+    settingsSheet.hidden = !open;
+    document.body.classList.toggle("lb-settings-open", open);
+    if (dock) dock.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      syncSettings();
+      var first = settingsSheet.querySelector("button, select");
+      if (first) first.focus();
+    } else if (dock) {
+      dock.focus();
+    }
+  }
+
+  function buildSettings() {
+    settingsSheet = document.createElement("div");
+    settingsSheet.id = "lb-settings";
+    settingsSheet.hidden = true;
+    settingsSheet.setAttribute("role", "dialog");
+    settingsSheet.setAttribute("aria-modal", "false");
+    settingsSheet.setAttribute("aria-label", "Settings");
+
+    var panel = document.createElement("div");
+    panel.className = "lb-set-panel";
+    settingsSheet.appendChild(panel);
+
+    var grabber = document.createElement("div");
+    grabber.className = "lb-set-grabber";
+    grabber.setAttribute("aria-hidden", "true");
+    panel.appendChild(grabber);
+
+    buildLayoutTabs(sheetSection(panel, "Layout"));
+
+    var reading = sheetSection(panel, "Reading");
+    reading.appendChild(
+      makeToggleRow(
+        "Saved only",
+        "Just the articles you starred",
+        function () {
+          return !!prefs.savedOnly;
+        },
+        function () {
+          setPref("savedOnly", !prefs.savedOnly);
+          if (prefs.savedOnly) setPref("hideRead", false);
+          applyFilters();
+        },
+      ),
+    );
+    reading.appendChild(
+      makeToggleRow(
+        "Hide read",
+        "Drop articles you have already opened",
+        function () {
+          return !!prefs.hideRead;
+        },
+        function () {
+          setPref("hideRead", !prefs.hideRead);
+          if (prefs.hideRead) setPref("savedOnly", false);
+          applyFilters();
+        },
+      ),
+    );
+    reading.appendChild(
+      makeToggleRow(
+        "Open in app",
+        "Preview articles here instead of a new tab",
+        inAppReadingOn,
+        function () {
+          setPref("inAppReader", !inAppReadingOn());
+        },
+      ),
     );
 
-    topBtn = makeDockButton("↑", "Back to top (g)", function () {
+    var show = sheetSection(panel, "How much to show", "show");
+    buildRangeRow(show);
+
+    var look = sheetSection(panel, "Appearance", "appearance");
+    buildThemeRow(look);
+
+    var foot = document.createElement("div");
+    foot.className = "lb-set-foot";
+
+    var topLink = document.createElement("button");
+    topLink.type = "button";
+    topLink.className = "lb-set-link";
+    topLink.textContent = "Back to top";
+    topLink.addEventListener("click", function () {
+      toggleSettings(false);
       window.scrollTo({
         top: 0,
         behavior: prefersReducedMotion() ? "auto" : "smooth",
       });
     });
 
-    readerBtn = makeDockButton(
-      "&#9744;",
-      "Open articles inside the app (r)",
-      function () {
-        setPref("inAppReader", !inAppReadingOn());
-        paintReaderBtn();
-      },
-    );
+    var helpLink = document.createElement("button");
+    helpLink.type = "button";
+    helpLink.className = "lb-set-link";
+    helpLink.textContent = "Gestures & shortcuts";
+    helpLink.addEventListener("click", function () {
+      toggleSettings(false);
+      toggleHelp();
+    });
 
-    var helpBtn = makeDockButton("?", "Keyboard shortcuts (?)", toggleHelp);
+    foot.appendChild(topLink);
+    foot.appendChild(helpLink);
+    panel.appendChild(foot);
+
+    // Tapping the scrim closes; taps inside the panel must not.
+    settingsSheet.addEventListener("click", function (event) {
+      if (event.target === settingsSheet) toggleSettings(false);
+    });
+    panel.addEventListener("click", function (event) {
+      event.stopPropagation();
+    });
+
+    document.body.appendChild(settingsSheet);
+  }
+
+  function buildDock() {
+    dock = document.createElement("button");
+    dock.id = "lb-dock";
+    dock.type = "button";
+    dock.title = "Settings";
+    dock.setAttribute("aria-label", "Settings");
+    dock.setAttribute("aria-expanded", "false");
+    dock.innerHTML = "<span aria-hidden='true'>⋯</span>";
 
     newBadge = document.createElement("span");
     newBadge.id = "lb-new-badge";
     newBadge.hidden = true;
 
-    dock.appendChild(newBadge);
-    dock.appendChild(savedBtn);
-    dock.appendChild(hideReadBtn);
-    dock.appendChild(readerBtn);
-    dock.appendChild(topBtn);
-    dock.appendChild(helpBtn);
+    dock.addEventListener("click", function () {
+      toggleSettings();
+    });
+
+    document.body.appendChild(newBadge);
     document.body.appendChild(dock);
+    buildSettings();
     applyFilters();
-    paintReaderBtn();
   }
 
   function paintReaderBtn() {
-    if (!readerBtn) return;
-    readerBtn.setAttribute("aria-pressed", inAppReadingOn() ? "true" : "false");
-    readerBtn.title = inAppReadingOn()
-      ? "Articles open in a preview inside the app (r)"
-      : "Articles open directly in the browser (r)";
+    syncSettings();
   }
 
   /* A filter that hides every article looks identical to a broken page, and
@@ -799,12 +1338,10 @@
     } else {
       newBadge.hidden = true;
     }
-    var saved = Object.keys(savedMap).length;
-    if (savedBtn) {
-      savedBtn.classList.toggle("lb-has-items", saved > 0);
-      savedBtn.title = saved
-        ? "Show saved articles only (v) — " + saved + " saved"
-        : "Show saved articles only (v)";
+    if (dock) {
+      var saved = Object.keys(savedMap).length;
+      dock.classList.toggle("lb-has-items", saved > 0);
+      dock.title = saved ? "Settings — " + saved + " saved" : "Settings";
     }
   }
 
@@ -917,9 +1454,15 @@
     helpOverlay = document.createElement("div");
     helpOverlay.id = "lb-help";
     helpOverlay.setAttribute("role", "dialog");
-    helpOverlay.setAttribute("aria-label", "Keyboard shortcuts");
+    helpOverlay.setAttribute("aria-label", "Gestures and keyboard shortcuts");
     helpOverlay.innerHTML =
       "<div id='lb-help-card'>" +
+      "<h3>On a touchscreen</h3>" +
+      "<dl>" +
+      "<dt>swipe right</dt><dd>save / unsave the article</dd>" +
+      "<dt>swipe left</dt><dd>mark it read / unread</dd>" +
+      "<dt>tap</dt><dd>open it</dd>" +
+      "</dl>" +
       "<h3>Keyboard shortcuts</h3>" +
       "<dl>" +
       "<dt>j / k</dt><dd>next / previous article</dd>" +
@@ -931,6 +1474,7 @@
       "<dt>/</dt><dd>focus the search box</dd>" +
       "<dt>r</dt><dd>open articles in-app or in the browser</dd>" +
       "<dt>[ / ]</dt><dd>previous / next article layout</dd>" +
+      "<dt>,</dt><dd>open settings</dd>" +
       "<dt>g / G</dt><dd>jump to top / bottom</dd>" +
       "<dt>Esc</dt><dd>close this panel, clear selection</dd>" +
       "<dt>?</dt><dd>toggle this panel</dd>" +
@@ -953,6 +1497,10 @@
       }
       if (helpOverlay) {
         toggleHelp();
+        return;
+      }
+      if (settingsOpen()) {
+        toggleSettings(false);
         return;
       }
       if (isTyping(event)) {
@@ -1009,11 +1557,19 @@
       }
       case "u":
         event.preventDefault();
-        if (hideReadBtn) hideReadBtn.click();
+        setPref("hideRead", !prefs.hideRead);
+        if (prefs.hideRead) setPref("savedOnly", false);
+        applyFilters();
         break;
       case "v":
         event.preventDefault();
-        if (savedBtn) savedBtn.click();
+        setPref("savedOnly", !prefs.savedOnly);
+        if (prefs.savedOnly) setPref("hideRead", false);
+        applyFilters();
+        break;
+      case ",":
+        event.preventDefault();
+        toggleSettings();
         break;
       case "/": {
         var search = document.querySelector("#filter-search input");
@@ -1340,7 +1896,6 @@
   function boot() {
     buildProgressBar();
     buildDock();
-    buildLayoutTabs();
     trackConnectivity();
     registerServiceWorker();
 
