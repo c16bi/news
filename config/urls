@@ -23,8 +23,24 @@ https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml "~NYT Politics" nyt po
 https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml "~NYT Tech" nyt tech
 
 # AP News
-https://feeds.apnews.com/apf-topnews "~AP Top News" ap news
-https://feeds.apnews.com/apf-business "~AP Business" ap finance
+# The old feeds.apnews.com/apf-* endpoints were retired and had been returning
+# nothing for some time; these are AP's current hub feeds.
+https://apnews.com/hub/ap-top-news.rss "~AP Top News" ap news
+https://apnews.com/hub/business.rss "~AP Business" ap finance
+
+# The Guardian
+# Added for pictures as much as for coverage: the Guardian is the one source
+# here that puts an image on essentially every item in its RSS, where
+# Bloomberg, the FT and the Economist put none and block the build from
+# reading their pages.
+https://www.theguardian.com/uk/business/rss "~Guardian Business" guardian finance
+https://www.theguardian.com/world/rss "~Guardian World" guardian news
+
+# BBC News
+# BBC ships no enclosures either, but unlike the financial press it answers the
+# build, so scripts/harvest_images.py resolves an og:image for roughly five in
+# six of its stories.
+https://feeds.bbci.co.uk/news/business/rss.xml "~BBC Business" bbc finance
 
 # Manchester United
 https://feeds.bbci.co.uk/sport/football/teams/manchester-united/rss.xml "~BBC - Man Utd" sport mufc

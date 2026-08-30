@@ -76,6 +76,13 @@ jobs:
         run: python3 ./scripts/harvest_images.py || true
         shell: bash
 
+      # A source whose URL has rotted produces no page and says nothing about
+      # it, so the site just shows one fewer feed. This turns that into a
+      # warning on the run summary. Advisory only - never fails the build.
+      - name: Report empty feeds
+        run: python3 ./scripts/report_empty_feeds.py || true
+        shell: bash
+
       - name: Truncate database
         run: |
           ./scripts/truncate_db ${{ env.NEWSBOAT_CACHE_RETENTION_DAYS }}

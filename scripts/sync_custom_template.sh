@@ -87,6 +87,27 @@ if 'href="./assets/custom.css' not in html:
         count=1,
     )
 
+if "fonts.googleapis.com" not in html:
+    font = (
+        "\n\n"
+        "    <!--\n"
+        "      Playfair carries the two newsprint layouts and nothing else, so it is\n"
+        "      requested with display=swap and a real fallback stack behind it: the page\n"
+        "      renders immediately in Iowan / Palatino / Noto Serif, and stays readable\n"
+        "      offline or if fonts.gstatic.com is blocked, where it simply never swaps.\n"
+        "    -->\n"
+        '    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
+        '    <link rel="stylesheet" media="print" onload="this.media=\'all\'"\n'
+        '          href="https://fonts.googleapis.com/css2?family=Playfair+Display'
+        ':wght@600;700&display=swap">'
+    )
+    html = re.sub(
+        r'(<link rel="stylesheet" href="\./assets/custom\.css[^>]*>)',
+        lambda m: m.group(1) + font,
+        html,
+        count=1,
+    )
+
 if "serviceWorker" not in html:
     recovery = (
         "\n"
@@ -142,6 +163,7 @@ missing = [
         'src="./assets/custom.js',
         'rel="manifest"',
         "controllerchange",
+        "fonts.googleapis.com",
     )
     if n not in html
 ]

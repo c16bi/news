@@ -593,86 +593,280 @@ body.lb-hide-read #app .filter-container::after {
 }
 
 /* ------------------------------------------------------------------ */
-/* floating dock                                                       */
+/* settings button + sheet                                             */
 /* ------------------------------------------------------------------ */
+
+/* One button, bottom right, thumb-reachable. It replaced two stacked bars -
+   five filter buttons and five layout tabs - that sat permanently over the
+   feed for choices made roughly never. Saving and marking read, the two that
+   are made constantly, are swipes now. */
 
 #lb-dock {
   position: fixed;
   right: 1rem;
   bottom: 1rem;
   z-index: 900;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.4rem;
-}
-
-.lb-dock-btn {
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 3rem;
+  height: 3rem;
   border-radius: 50%;
-  border: 1px solid rgb(from var(--color-text) r g b / 20%);
+  border: 1px solid rgb(from var(--color-text) r g b / 18%);
   background-color: rgb(from var(--color-background) r g b / 92%);
   color: var(--color-text);
-  font-size: 1rem;
+  font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 22px rgb(0 0 0 / 22%);
   transition:
     background-color 0.15s ease,
     transform 0.15s ease;
 }
 
-.lb-dock-btn:hover {
+#lb-dock:hover {
   background-color: var(--color-accent);
-  transform: translateY(-1px);
 }
 
-.lb-dock-btn[aria-pressed="true"] {
-  background-color: var(--color-accent);
-  border-color: var(--color-highlight);
-  color: var(--color-highlight);
+#lb-dock:active {
+  transform: scale(0.94);
 }
 
-.lb-dock-btn.lb-has-items {
+#lb-dock.lb-has-items {
   color: var(--color-custom);
 }
 
-/* Back-to-top only matters once you have scrolled. */
-#lb-dock .lb-dock-btn:nth-last-child(2) {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-}
-
-body.lb-scrolled #lb-dock .lb-dock-btn:nth-last-child(2) {
-  opacity: 1;
-  pointer-events: auto;
-}
-
+/* The unread count belongs on the feed, not inside a settings menu. */
 #lb-new-badge {
+  position: fixed;
+  right: 1rem;
+  bottom: 4.3rem;
+  z-index: 900;
   background-color: var(--color-custom);
   color: var(--color-background);
   font-size: 0.68rem;
   font-weight: 700;
-  padding: 0.15rem 0.55rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 20%);
+}
+
+/* `display: flex` on the scrim would otherwise beat the hidden attribute's
+   own display:none, leaving a closed sheet invisible but still swallowing
+   every tap on the page. */
+#lb-settings[hidden] {
+  display: none;
+}
+
+#lb-settings {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background-color: rgb(0 0 0 / 42%);
+  backdrop-filter: blur(2px);
+}
+
+.lb-set-panel {
+  width: min(30rem, 100%);
+  max-height: min(82vh, 44rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  border-radius: 1.1rem 1.1rem 0 0;
+  border: 1px solid var(--lb-hairline);
+  border-bottom: none;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  animation: lb-sheet-up 0.22s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-set-panel {
+    animation: none;
+  }
+}
+
+@keyframes lb-sheet-up {
+  from {
+    transform: translateY(12%);
+    opacity: 0;
+  }
+}
+
+.lb-set-grabber {
+  width: 2.4rem;
+  height: 0.25rem;
+  margin: 0.35rem auto 0.75rem;
+  border-radius: 999px;
+  background-color: var(--lb-hairline);
+}
+
+.lb-set-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+.lb-set-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.lb-set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  border-radius: 0.7rem;
+  background-color: var(--lb-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lb-set-row-static {
+  cursor: default;
+}
+
+.lb-set-row:hover {
+  background-color: var(--lb-row-hover);
+}
+
+.lb-set-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.lb-set-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.lb-set-hint {
+  font-size: 0.76rem;
+  color: var(--lb-faint);
+}
+
+/* Track and knob, drawn rather than imported, so it matches every theme. */
+.lb-set-knob {
+  position: relative;
+  flex: none;
+  width: 2.6rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background-color: var(--lb-hairline);
+  transition: background-color 0.18s ease;
+}
+
+.lb-set-knob::after {
+  content: "";
+  position: absolute;
+  top: 0.18rem;
+  left: 0.18rem;
+  width: 1.14rem;
+  height: 1.14rem;
+  border-radius: 50%;
+  background-color: var(--color-background);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+  transition: transform 0.18s ease;
+}
+
+.lb-set-row[aria-checked="true"] .lb-set-knob {
+  background-color: var(--color-custom);
+}
+
+.lb-set-row[aria-checked="true"] .lb-set-knob::after {
+  transform: translateX(1.1rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-set-knob,
+  .lb-set-knob::after {
+    transition: none;
+  }
+}
+
+.lb-set-select {
+  flex: none;
+  max-width: 11rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--lb-hairline);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+#lb-range-row {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.lb-range-btn {
+  flex: 1 1 0;
+  min-height: 2.6rem;
+  padding: 0.5rem 0.4rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  background-color: var(--lb-surface);
+  color: var(--lb-faint);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
   white-space: nowrap;
 }
 
-/* Two stacked bars: the dock row sits above the full-width layout tabs so
-   neither covers the other. */
-@media (max-width: 560px) {
-  #lb-dock {
-    flex-direction: row;
-    align-items: center;
-    right: 0.6rem;
-    bottom: 4.1rem;
-  }
-  .lb-dock-btn {
-    width: 2.6rem;
-    height: 2.6rem;
-  }
+.lb-range-btn[aria-pressed="true"] {
+  background-color: var(--color-accent);
+  border-color: var(--color-highlight);
+  color: var(--color-text);
+}
+
+.lb-set-foot {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--lb-hairline);
+}
+
+.lb-set-link {
+  flex: 1 1 0;
+  min-height: 2.6rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: none;
+  color: var(--lb-faint);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lb-set-link:hover {
+  background-color: var(--lb-row-hover);
+  color: var(--color-text);
+}
+
+/* The feed keeps scrolling behind the sheet on desktop, but on a phone the
+   sheet is most of the screen and scroll chaining is disorienting. */
+body.lb-settings-open {
+  overflow: hidden;
 }
 
 /* ------------------------------------------------------------------ */
@@ -846,69 +1040,57 @@ body.lb-offline #app::before {
 }
 
 /* ------------------------------------------------------------------ */
-/* layout tabs                                                         */
+/* layout tabs (inside the settings sheet)                             */
 /* ------------------------------------------------------------------ */
 
 #lb-layout-tabs {
-  position: fixed;
-  left: 50%;
-  bottom: 1rem;
-  transform: translateX(-50%);
-  z-index: 899;
-  display: flex;
-  gap: 0.15rem;
-  padding: 0.2rem;
-  border-radius: 999px;
-  border: 1px solid rgb(from var(--color-text) r g b / 18%);
-  background-color: rgb(from var(--color-background) r g b / 92%);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 6px 22px rgb(0 0 0 / 22%);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.3rem;
 }
 
 #lb-layout-tabs button {
-  border: none;
-  background: none;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-height: 3.4rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  background-color: var(--lb-surface);
   color: var(--lb-faint);
-  font-size: 0.74rem;
-  font-weight: 600;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  white-space: nowrap;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
 }
 
+.lb-layout-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.lb-layout-hint {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  color: var(--lb-faint);
+}
+
 #lb-layout-tabs button:hover {
+  background-color: var(--lb-row-hover);
   color: var(--color-text);
 }
 
 #lb-layout-tabs button[aria-selected="true"] {
   background-color: var(--color-accent);
+  border-color: var(--color-highlight);
   color: var(--color-text);
 }
 
-@media (max-width: 560px) {
-  #lb-layout-tabs {
-    bottom: 0.6rem;
-    left: 0.5rem;
-    right: 0.5rem;
-    transform: none;
-    justify-content: space-between;
-    /* Safety valve if a future layout name pushes past the viewport. */
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  #lb-layout-tabs::-webkit-scrollbar {
-    display: none;
-  }
-  #lb-layout-tabs button {
-    flex: 1 1 auto;
-    padding: 0.5rem 0.3rem;
-    font-size: 0.68rem;
-    letter-spacing: -0.01em;
-  }
+#lb-layout-tabs button[aria-selected="true"] .lb-layout-name {
+  color: var(--color-text);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1508,4 +1690,563 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
 .lb-sheet-action[aria-pressed="true"] {
   color: var(--color-custom);
   border-color: var(--color-custom);
+}
+
+/* ------------------------------------------------------------------ */
+/* quieting the template's own chrome                                  */
+/* ------------------------------------------------------------------ */
+
+/* These controls all still work - they are mirrored inside the settings
+   sheet, which drives the real ones. What changes is that they are no longer
+   the first three things on the page. Hidden rather than removed: the SPA
+   renders them, reads their state, and a click on the original is still the
+   most reliable way to change it. */
+
+/* "Page generated with Liveboat / Updated on ... / Template ver 1.3.0" */
+#app .header-crumbs {
+  display: none;
+}
+
+/* A bare 15-option <select> was the second element on the page. */
+#app #theme-selector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Firehose / Last day / Last 50 / Last 20 -> "How much to show" in the sheet. */
+#app .filter-container .filter-box {
+  display: none;
+}
+
+#app #filter-search-help {
+  display: none;
+}
+
+/* Search stays on the page: it is the one control here that gets reached for
+   mid-read, and burying it behind a menu would cost more than it saves. */
+#app .filter-container {
+  padding: 0;
+  margin: 0 0 0.5rem;
+  min-height: 0;
+}
+
+#app #filter-search {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+}
+
+#app #filter-search input {
+  width: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid var(--lb-hairline);
+  background-color: var(--lb-surface);
+}
+
+/* ------------------------------------------------------------------ */
+/* swipe gestures                                                      */
+/* ------------------------------------------------------------------ */
+
+/* pan-y hands vertical scrolling back to the compositor, so dragging up and
+   down stays at native speed and only sideways movement reaches the script. */
+#app li.feed-item {
+  touch-action: pan-y;
+}
+
+#app li.feed-item.lb-swiping {
+  transition: none;
+  will-change: transform;
+  z-index: 2;
+}
+
+/* The row springs back under its own transition when the finger lifts; during
+   the drag the script owns the transform and the transition is off. */
+#app li.feed-item:not(.lb-swiping) {
+  transition: transform 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app li.feed-item:not(.lb-swiping) {
+    transition: none;
+  }
+}
+
+.lb-swipe-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: none;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+#app li.feed-item.lb-swiping {
+  position: relative;
+}
+
+#app li.feed-item.lb-swiping .lb-swipe-hint {
+  display: flex;
+}
+
+/* The hint sits in the gap the row has opened, on the side it came from. */
+#app li.feed-item[data-lb-swipe="save"] .lb-swipe-hint {
+  left: 0;
+  transform: translateX(-100%);
+  color: var(--color-custom);
+}
+
+#app li.feed-item[data-lb-swipe="read"] .lb-swipe-hint {
+  right: 0;
+  transform: translateX(100%);
+  color: var(--lb-faint);
+}
+
+/* Past the commit distance the hint goes solid, so the threshold is findable
+   by feel and by eye rather than only by guessing. */
+#app li.feed-item.lb-swipe-armed .lb-swipe-hint {
+  opacity: 1;
+  font-size: 0.84rem;
+}
+
+#app li.feed-item.lb-swipe-armed[data-lb-swipe="save"] {
+  background-color: rgb(from var(--color-custom) r g b / 12%);
+}
+
+#app li.feed-item.lb-swipe-armed[data-lb-swipe="read"] {
+  background-color: var(--lb-row-hover);
+}
+
+/* ------------------------------------------------------------------ */
+/* layouts: e1 (mixed weight) and e2 (picture leads)                   */
+/* ------------------------------------------------------------------ */
+
+/* Both wear the same skin - warm newsprint, one ink red, a display serif for
+   headlines - and differ only in what they do with pictures. e1 keeps strict
+   reverse-chronological order and lets rows with a picture and rows without
+   alternate. e2 promotes each section's newest picture to a full-width lead
+   and runs the remainder as a tight list.
+
+   The palette is redefined on <body> rather than :root on purpose. The
+   template writes its own values to :root with !important, which wins only
+   among declarations on that same element - body's own value is what body and
+   its descendants resolve. That is also how the SPA's own themes work. */
+
+/* !important here is not a shortcut, it is the only key that fits the lock.
+   Every built-in theme declares its palette as
+   `.seabreeze-theme { --color-background: #e1e2e7 !important; ... }`,
+   so no amount of specificity in a normal declaration can displace it. Among
+   important declarations specificity decides again, which is what the
+   lb-own-skin class buys: class-plus-attribute (0,2,1) outranks the theme's
+   single class (0,1,1). The five variables below are the whole override; every
+   rule after this one is ordinary. */
+body.lb-own-skin[data-lb-layout="e1"],
+body.lb-own-skin[data-lb-layout="e2"] {
+  --color-background: #f5f1e6 !important;
+  --color-text: #24211c !important;
+  --color-accent: #e9e3d2 !important;
+  --color-highlight: #b8352a !important;
+  --color-custom: #b8352a !important;
+
+  --lb-hairline: rgb(36 33 28 / 16%);
+  --lb-muted: rgb(36 33 28 / 88%);
+  --lb-faint: rgb(36 33 28 / 58%);
+  --lb-surface: rgb(36 33 28 / 5%);
+  --lb-row-hover: rgb(36 33 28 / 7%);
+  --lb-card-bg: transparent;
+  --lb-card-border: rgb(36 33 28 / 14%);
+
+  /* Playfair is the character of this layout, but it is one webfont on a page
+     that must work offline, so the fallback is a real stack rather than a
+     shrug - Iowan and Palatino ship on Apple devices, Noto Serif on Android. */
+  --lb-serif:
+    "Playfair Display", "Iowan Old Style", "Palatino Linotype", "Noto Serif",
+    Georgia, serif;
+  --lb-sans:
+    "Archivo Narrow", ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+body[data-lb-layout="e1"] #app,
+body[data-lb-layout="e2"] #app {
+  max-width: 44rem;
+  margin: 0 auto;
+}
+
+/* --- masthead --- */
+
+body[data-lb-layout="e1"] #app .header-container,
+body[data-lb-layout="e2"] #app .header-container {
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+body[data-lb-layout="e1"] #app .header-title h2,
+body[data-lb-layout="e2"] #app .header-title h2 {
+  font-family: var(--lb-serif);
+  font-weight: 700;
+  font-size: 1.7rem;
+  letter-spacing: -0.015em;
+}
+
+/* --- section rules --- */
+
+body[data-lb-layout="e1"] #app .feed-title,
+body[data-lb-layout="e2"] #app .feed-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--lb-sans);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-highlight);
+  border-bottom: 1px solid var(--color-text);
+  padding-bottom: 0.3rem;
+  margin: 1.6rem 0 0.2rem;
+}
+
+.lb-nopix-note {
+  margin-left: auto;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--lb-faint);
+  text-transform: none;
+}
+
+/* --- shared row typography --- */
+
+body[data-lb-layout="e1"] #app li.feed-item,
+body[data-lb-layout="e2"] #app li.feed-item {
+  border-bottom: 1px solid var(--lb-hairline);
+  padding: 0.85rem 0;
+}
+
+body[data-lb-layout="e1"] #app .feed-item-link a,
+body[data-lb-layout="e2"] #app .feed-item-link a {
+  font-family: var(--lb-serif);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  line-height: 1.24;
+  color: var(--color-text);
+}
+
+body[data-lb-layout="e1"] #app .lb-time,
+body[data-lb-layout="e2"] #app .lb-time,
+body[data-lb-layout="e1"] #app .lb-source-label,
+body[data-lb-layout="e2"] #app .lb-source-label {
+  font-family: var(--lb-sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+/* The monogram badge is a screen-app device; on newsprint the masthead name
+   carries the source perfectly well on its own. */
+body[data-lb-layout="e1"] #app .lb-source-badge,
+body[data-lb-layout="e2"] #app .lb-source-badge {
+  display: none;
+}
+
+body[data-lb-layout="e1"] #app .feed-item-author,
+body[data-lb-layout="e2"] #app .feed-item-author {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* e1 - mixed weight                                                   */
+/* ------------------------------------------------------------------ */
+
+/* Picture on the right at a fixed size, headline filling the rest. A story
+   with no picture simply takes the full measure and gets a larger setting, so
+   the column keeps a rhythm instead of leaving a run of empty boxes where
+   Bloomberg and the FT should be. */
+
+body[data-lb-layout="e1"] #app li.feed-item {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "time"
+    "head"
+    "meta";
+  column-gap: 0.9rem;
+  row-gap: 0.2rem;
+  align-items: start;
+}
+
+body[data-lb-layout="e1"] #app li.feed-item.lb-has-image {
+  grid-template-columns: 1fr 7rem;
+  grid-template-areas:
+    "time  pic"
+    "head  pic"
+    "meta  pic";
+}
+
+body[data-lb-layout="e1"] #app li.feed-item .lb-time {
+  grid-area: time;
+}
+
+body[data-lb-layout="e1"] #app li.feed-item .feed-item-link {
+  grid-area: head;
+}
+
+body[data-lb-layout="e1"] #app li.feed-item .feed-item-domain {
+  grid-area: meta;
+}
+
+body[data-lb-layout="e1"] #app li.feed-item .lb-thumb {
+  grid-area: pic;
+  width: 7rem;
+  height: 5.2rem;
+  object-fit: cover;
+  border-radius: 0.2rem;
+  align-self: start;
+}
+
+body[data-lb-layout="e1"] #app .feed-item-link a {
+  font-size: 1.05rem;
+}
+
+/* No picture, so the headline gets the space the picture would have taken. */
+body[data-lb-layout="e1"]
+  #app
+  li.feed-item:not(.lb-has-image)
+  .feed-item-link
+  a {
+  font-size: 1.18rem;
+  line-height: 1.3;
+}
+
+body[data-lb-layout="e1"] #app li.feed-item .lb-star {
+  grid-area: meta;
+  justify-self: end;
+  align-self: center;
+}
+
+/* ------------------------------------------------------------------ */
+/* e2 - picture leads                                                  */
+/* ------------------------------------------------------------------ */
+
+/* The lead is hoisted with `order`, never by moving the node: the SPA owns
+   this list and re-renders it from its own state, so a moved row would be put
+   back - and would arrive carrying the wrong article's decoration. A flex
+   column reorders visually and leaves the DOM exactly as Vue wrote it. */
+
+body[data-lb-layout="e2"] #app .feed-item-group ul,
+body[data-lb-layout="e2"] #app .feed-wrapper > div {
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item.lb-lead {
+  order: -1;
+  display: block;
+  padding: 0.9rem 0 1.1rem;
+  border-bottom: 2px solid var(--color-text);
+}
+
+body[data-lb-layout="e2"] #app li.feed-item.lb-lead .lb-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-bottom: 0.6rem;
+  border-radius: 0.2rem;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item.lb-lead .feed-item-link a {
+  font-size: 1.5rem;
+  line-height: 1.16;
+  font-weight: 700;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item.lb-lead .lb-time {
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+/* Everything after the lead is a list: no pictures, tight leading, so a
+   section reads as one photograph and then its headlines. */
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) {
+  display: grid;
+  grid-template-columns: 3.2rem 1fr;
+  gap: 0.1rem 0.7rem;
+  align-items: baseline;
+  padding: 0.6rem 0;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .lb-time {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .feed-item-link {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .feed-item-domain {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .feed-item-link a {
+  font-size: 1rem;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .lb-thumb {
+  display: none;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item .lb-star {
+  position: absolute;
+  right: 0;
+  bottom: 0.5rem;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item {
+  position: relative;
+}
+
+/* A section where nothing has a picture keeps the list and says so in the
+   rule above it, rather than presenting an empty space as a design. */
+body[data-lb-layout="e2"] #app .feed-wrapper.lb-section-nopix li.feed-item {
+  padding: 0.55rem 0;
+}
+
+/* --- newsprint corrections, found by looking at it on a phone --- */
+
+/* On narrow screens the source name is normally hidden because the monogram
+   badge carries it. Newsprint drops the badge, so the name has to come back
+   or the source disappears entirely. */
+body[data-lb-layout="e1"] #app .lb-source-label,
+body[data-lb-layout="e2"] #app .lb-source-label {
+  display: inline;
+}
+
+body[data-lb-layout="e1"] #app .feed-item-domain,
+body[data-lb-layout="e2"] #app .feed-item-domain {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 1.1rem;
+}
+
+/* The inline expand caret landed in the middle of a headline and broke the
+   line. Tapping the headline already opens a preview with the same summary. */
+body[data-lb-layout="e1"] #app .article-expand,
+body[data-lb-layout="e2"] #app .article-expand {
+  display: none;
+}
+
+/* Upstream sets the section name as a filled chip. On newsprint the rule under
+   it does that job, so the name is just the name. */
+body[data-lb-layout="e1"] #app .feed-title a,
+body[data-lb-layout="e2"] #app .feed-title a {
+  position: static;
+  max-width: none;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: var(--lb-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-highlight);
+}
+
+body[data-lb-layout="e1"] #app .feed-header-tag,
+body[data-lb-layout="e2"] #app .feed-header-tag {
+  display: none;
+}
+
+/* Saving is a swipe now, so on a touchscreen the star is a second control for
+   something already covered - and at a size that fits a headline row it would
+   be too small to hit anyway. It stays as a state marker there, and stays a
+   real button wherever there is a pointer. */
+body[data-lb-layout="e1"] #app .lb-star,
+body[data-lb-layout="e2"] #app .lb-star {
+  position: static;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  margin-left: auto;
+  font-size: 0.85rem;
+  background: none;
+  border: none;
+  /* display:none rather than opacity:0 - an invisible star still occupied a
+     line of its own under the e2 lead, leaving a gap that read as a mistake. */
+  display: none;
+  pointer-events: none;
+}
+
+body[data-lb-layout="e1"] #app .feed-item.lb-saved .lb-star,
+body[data-lb-layout="e2"] #app .feed-item.lb-saved .lb-star {
+  display: inline;
+  opacity: 1;
+  color: var(--color-highlight);
+}
+
+@media (hover: hover) {
+  body[data-lb-layout="e1"] #app .lb-star,
+  body[data-lb-layout="e2"] #app .lb-star {
+    display: inline;
+    opacity: 0.4;
+    pointer-events: auto;
+  }
+  body[data-lb-layout="e1"] #app .feed-item:hover .lb-star,
+  body[data-lb-layout="e2"] #app .feed-item:hover .lb-star {
+    opacity: 0.75;
+  }
+}
+
+/* The star sat in its own grid row, adding a 44px band of nothing to every
+   article. It belongs on the metadata line beside the source. */
+body[data-lb-layout="e1"] #app li.feed-item .lb-star {
+  grid-area: meta;
+  align-self: center;
+}
+
+body[data-lb-layout="e1"] #app li.feed-item {
+  padding: 0.7rem 0;
+  row-gap: 0.15rem;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item .lb-star {
+  position: static;
+}
+
+/* The lead's timestamp was setting itself beside the headline and pushing the
+   first line into a hanging indent. It reads as a dateline above it. */
+body[data-lb-layout="e2"] #app li.feed-item.lb-lead .lb-time {
+  display: block;
+  width: auto;
+  margin: 0 0 0.2rem;
+  text-align: left;
+}
+
+body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .lb-star {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
 }
