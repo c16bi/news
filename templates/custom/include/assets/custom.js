@@ -115,12 +115,12 @@
     {
       id: "e1",
       label: "Mixed",
-      hint: "Newsprint. Newest first; pictures where they exist",
+      hint: "Newest first, pictures where they exist",
     },
     {
       id: "e2",
       label: "Leads",
-      hint: "Newsprint. Each section opens with its best picture",
+      hint: "Each section opens with its best picture",
     },
   ];
 
@@ -132,9 +132,9 @@
     return !!IMAGE_LAYOUTS[currentLayout()];
   }
 
-  // e1 and e2 replace the palette and typography wholesale rather than tinting
-  // the active theme, so the theme control is meaningless while one is on.
-  function layoutOwnsSkin() {
+  // e1 and e2 restyle type and structure but take their colour from whichever
+  // theme is selected, like every other layout.
+  function editorialLayout() {
     var id = currentLayout();
     return id === "e1" || id === "e2";
   }
@@ -151,9 +151,8 @@
 
   function applyLayout() {
     document.body.setAttribute("data-lb-layout", currentLayout());
-    document.body.classList.toggle("lb-own-skin", layoutOwnsSkin());
+    document.body.classList.toggle("lb-editorial", editorialLayout());
     schedule();
-    syncThemeRow();
     if (!layoutTabs) return;
     var buttons = layoutTabs.querySelectorAll("button");
     for (var i = 0; i < buttons.length; i++) {
@@ -503,41 +502,87 @@
   /* ------------------------------------------------------------------ */
 
   /* Swipe right saves, swipe left marks read - the two things worth doing to a
-     headline without opening it, on the hand that is already holding the
-     phone.
+     headline without opening it, on the hand already holding the phone.
 
-     Vertical scrolling is left entirely to the browser: `touch-action: pan-y`
-     on the row means the compositor keeps handling up and down at full speed
-     and only hands us horizontal movement, so there is no preventDefault here
-     and no way for this to make the feed feel heavy. */
+     Two rules keep this smooth, and the first version broke both.
 
-  var SWIPE_TRIGGER = 72; // px of travel that commits the action
-  var SWIPE_CLAIM = 12; // px before we decide the gesture is ours
-  var SWIPE_MAX = 120; // rubber-band ceiling
+     One: the finger must never wait on layout. `touch-action: pan-y` hands
+     vertical scrolling to the compositor, so there is no preventDefault here;
+     and the only thing written during a drag is a transform, batched into one
+     rAF per frame. The first version created the hint element, set an
+     attribute, toggled a class and rewrote text on every single touchmove -
+     four style invalidations a frame on a card carrying a photograph.
 
-  function swipeHint(li) {
-    var hint = li.querySelector(".lb-swipe-hint");
-    if (!hint) {
-      hint = document.createElement("span");
-      hint.className = "lb-swipe-hint";
-      hint.setAttribute("aria-hidden", "true");
-      li.appendChild(hint);
-    }
-    return hint;
-  }
+     Two: nothing that changes size may change during the drag. The hint is
+     built once at bind time and its text is rewritten only when the direction
+     or the armed state actually flips, not continuously. */
 
-  function endSwipe(li, offset) {
-    li.style.transform = offset ? "translateX(" + offset + "px)" : "";
-    li.classList.toggle("lb-swiping", offset !== 0);
-    if (!offset) li.removeAttribute("data-lb-swipe");
-  }
+  var SWIPE_TRIGGER = 64; // px of travel that commits the action
+  var SWIPE_CLAIM = 10; // px before we decide the gesture is ours
+  var SWIPE_MAX = 108; // rubber-band ceiling
 
   function bindGestures(li) {
     var startX = 0;
     var startY = 0;
     var offset = 0;
     var claimed = false;
-    var settled = false;
+    var settled = true;
+    var frame = 0;
+
+    // Built once. Creating this mid-drag cost a layout on every frame.
+    var hint = document.createElement("span");
+    hint.className = "lb-swipe-hint";
+    hint.setAttribute("aria-hidden", "true");
+    li.appendChild(hint);
+
+    // Last painted state, so the DOM is touched only when it actually changes.
+    var shownAction = "";
+    var shownArmed = null;
+
+    function paint() {
+      frame = 0;
+      li.style.transform = offset ? "translate3d(" + offset + "px,0,0)" : "";
+
+      var action = offset > 0 ? "save" : "read";
+      var armed = Math.abs(offset) >= SWIPE_TRIGGER;
+      if (action === shownAction && armed === shownArmed) return;
+
+      if (action !== shownAction) {
+        li.setAttribute("data-lb-swipe", action);
+        var url = li.getAttribute("data-lb-url");
+        hint.textContent =
+          action === "save"
+            ? savedMap[url]
+              ? "Unsave"
+              : "Save"
+            : readMap[url]
+              ? "Unread"
+              : "Read";
+        shownAction = action;
+      }
+      if (armed !== shownArmed) {
+        li.classList.toggle("lb-swipe-armed", armed);
+        shownArmed = armed;
+      }
+    }
+
+    function schedulePaint() {
+      if (!frame) frame = requestAnimationFrame(paint);
+    }
+
+    function reset() {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      offset = 0;
+      claimed = false;
+      shownAction = "";
+      shownArmed = null;
+      li.style.transform = "";
+      li.classList.remove("lb-swiping", "lb-swipe-armed");
+      li.removeAttribute("data-lb-swipe");
+    }
 
     li.addEventListener(
       "touchstart",
@@ -577,6 +622,10 @@
           if (Math.abs(dx) < SWIPE_CLAIM) return;
           claimed = true;
           li.classList.add("lb-swiping");
+          // Start measuring from the point the gesture was claimed, so the row
+          // does not jump the claim distance the instant it takes over.
+          startX += dx < 0 ? -SWIPE_CLAIM : SWIPE_CLAIM;
+          dx = event.touches[0].clientX - startX;
         }
 
         // Resist past the trigger point so the row cannot be flung off screen
@@ -586,38 +635,21 @@
           var over = Math.abs(offset) - SWIPE_TRIGGER;
           offset =
             (offset < 0 ? -1 : 1) *
-            Math.min(SWIPE_MAX, SWIPE_TRIGGER + over * 0.35);
+            Math.min(SWIPE_MAX, SWIPE_TRIGGER + over * 0.3);
         }
-
-        var hint = swipeHint(li);
-        var action = offset > 0 ? "save" : "read";
-        var armed = Math.abs(offset) >= SWIPE_TRIGGER;
-        li.setAttribute("data-lb-swipe", action);
-        li.classList.toggle("lb-swipe-armed", armed);
-
-        var url = li.getAttribute("data-lb-url");
-        if (action === "save") {
-          hint.textContent = savedMap[url] ? "★ Unsave" : "★ Save";
-        } else {
-          hint.textContent = readMap[url] ? "◎ Unread" : "◎ Read";
-        }
-
-        li.style.transform = "translateX(" + offset + "px)";
+        schedulePaint();
       },
       { passive: true },
     );
 
-    var finish = function () {
+    function finish() {
       if (settled || !claimed) {
-        endSwipe(li, 0);
-        li.classList.remove("lb-swipe-armed");
+        reset();
         return;
       }
       var committed = Math.abs(offset) >= SWIPE_TRIGGER;
       var action = offset > 0 ? "save" : "read";
-      endSwipe(li, 0);
-      li.classList.remove("lb-swipe-armed");
-      claimed = false;
+      reset();
       if (!committed) return;
 
       // Read the URL now, not at bind time: Vue recycles these rows.
@@ -659,7 +691,7 @@
       }
       syncRows(url);
       refreshDock();
-    };
+    }
 
     li.addEventListener("touchend", finish, { passive: true });
     li.addEventListener("touchcancel", finish, { passive: true });
@@ -936,6 +968,10 @@
   function applyFilters() {
     document.body.classList.toggle("lb-hide-read", !!prefs.hideRead);
     document.body.classList.toggle("lb-saved-only", !!prefs.savedOnly);
+    // With in-app reading on, tapping a headline opens a sheet showing the
+    // same summary the inline expand button reveals. Two controls for one
+    // thing, and the inline one sets in the middle of the headline.
+    document.body.classList.toggle("lb-inapp", inAppReadingOn());
     document.body.classList.toggle("lb-scrolled", window.scrollY > 240);
     var reprieved = document.querySelectorAll(".lb-just-unsaved");
     for (var i = 0; i < reprieved.length; i++) {
@@ -1011,7 +1047,6 @@
   function syncThemeRow() {
     var row = document.getElementById("lb-theme-row");
     if (!row) return;
-    row.hidden = layoutOwnsSkin();
     var select = row.querySelector("select");
     var native = nativeThemeSelect();
     if (select && native && select.value !== native.value) {
@@ -1034,7 +1069,7 @@
     name.textContent = "Theme";
     var hint = document.createElement("span");
     hint.className = "lb-set-hint";
-    hint.textContent = "Colours for the list layouts";
+    hint.textContent = "Applies to every layout";
     text.appendChild(name);
     text.appendChild(hint);
 
@@ -1201,6 +1236,7 @@
         inAppReadingOn,
         function () {
           setPref("inAppReader", !inAppReadingOn());
+          paintReaderBtn();
         },
       ),
     );
@@ -1210,6 +1246,40 @@
 
     var look = sheetSection(panel, "Appearance", "appearance");
     buildThemeRow(look);
+
+    // The GitHub / RSS / OPML links upstream floats out of a zero-height box
+    // in the header. Same links, somewhere they fit.
+    var links = document.querySelectorAll(
+      "#icons-aggro a[href], #side-buttons a[href]",
+    );
+    if (links.length) {
+      var out = sheetSection(panel, "This feed");
+      out.id = "lb-out-links";
+      var names = {
+        "icon-github": "Source",
+        "icon-rss": "RSS",
+        "icon-opml": "OPML",
+      };
+      for (var li = 0; li < links.length; li++) {
+        (function (src) {
+          var name = names[src.id];
+          if (!name) return;
+          var a = document.createElement("a");
+          a.className = "lb-set-row lb-set-row-static";
+          a.href = src.href;
+          a.target = "_blank";
+          a.rel = "noopener";
+          var text = document.createElement("span");
+          text.className = "lb-set-text";
+          var n = document.createElement("span");
+          n.className = "lb-set-name";
+          n.textContent = name;
+          text.appendChild(n);
+          a.appendChild(text);
+          out.appendChild(a);
+        })(links[li]);
+      }
+    }
 
     var foot = document.createElement("div");
     foot.className = "lb-set-foot";
@@ -1274,6 +1344,7 @@
   }
 
   function paintReaderBtn() {
+    document.body.classList.toggle("lb-inapp", inAppReadingOn());
     syncSettings();
   }
 
@@ -1327,8 +1398,50 @@
     el.querySelector(".lb-empty-detail").textContent = detail;
   }
 
+  /* Says which filter is on, right where the filtered list starts, and clears
+     it when tapped. Placed before the feed rather than in the settings sheet:
+     a filter you have forgotten about looks exactly like a feed that has
+     stopped working, so it has to be visible without opening anything. */
+  function refreshFilterChip() {
+    var chip = document.getElementById("lb-filter-chip");
+    var label = prefs.savedOnly
+      ? "Saved only"
+      : prefs.hideRead
+        ? "Hiding read"
+        : "";
+
+    if (!label) {
+      if (chip) chip.remove();
+      return;
+    }
+
+    if (!chip) {
+      chip = document.createElement("button");
+      chip.id = "lb-filter-chip";
+      chip.type = "button";
+      chip.addEventListener("click", function () {
+        setPref("savedOnly", false);
+        setPref("hideRead", false);
+        applyFilters();
+        schedule();
+      });
+      var host = document.querySelector("#app .filter-container");
+      if (host && host.parentNode) {
+        host.parentNode.insertBefore(chip, host.nextSibling);
+      } else {
+        return;
+      }
+    }
+    chip.firstChild
+      ? (chip.firstChild.nodeValue = label)
+      : chip.appendChild(document.createTextNode(label));
+    chip.title = "Clear this filter";
+    chip.setAttribute("aria-label", label + " - tap to clear");
+  }
+
   function refreshDock() {
     refreshEmptyState();
+    refreshFilterChip();
     if (!newBadge) return;
     var count = document.querySelectorAll(".feed-item.lb-new").length;
     if (count > 0 && lastVisit) {
