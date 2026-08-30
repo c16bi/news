@@ -30,7 +30,17 @@
     <meta property="og:description" content="Benji&#x27;s News — a personal news feed.">
 
     <link rel="stylesheet" href="./assets/index.css?tv=1.3.0">
-    <link rel="stylesheet" href="./assets/custom.css?bt=1788047115">
+    <link rel="stylesheet" href="./assets/custom.css?bt=1788051679">
+
+    <!--
+      Playfair carries the two newsprint layouts and nothing else, so it is
+      requested with display=swap and a real fallback stack behind it: the page
+      renders immediately in Iowan / Palatino / Noto Serif, and stays readable
+      offline or if fonts.gstatic.com is blocked, where it simply never swaps.
+    -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" media="print" onload="this.media='all'"
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap">
     <style>
         :root {
             --color-text: #c7cfcc !important;
@@ -44,7 +54,7 @@
   </head>
   <body>
       <script>
-      window.buildTime = 1788047115;
+      window.buildTime = 1788051679;
       window.templateVer = "1.3.0";
       window.pageTitle = 'Benji&#x27;s News';
       window.sitePath = '/news/';
@@ -56,7 +66,7 @@
                 title: "Finance",
                 displayTitle: "Finance",
                 feedLink: "",
-                itemCount: "58",
+                itemCount: "120",
                 isQuery: true,
                 tags: [
                     "finance",
@@ -68,7 +78,7 @@
                 title: "News",
                 displayTitle: "News",
                 feedLink: "",
-                itemCount: "53",
+                itemCount: "96",
                 isQuery: true,
                 tags: [
                     "news",
@@ -116,7 +126,7 @@
                 title: "Bloomberg Markets",
                 displayTitle: "Bloomberg Markets",
                 feedLink: "http://bloomberg.com/markets/",
-                itemCount: "18",
+                itemCount: "17",
                 isQuery: false,
                 tags: [
                     "bloomberg",
@@ -158,7 +168,7 @@
                 title: "International homepage",
                 displayTitle: "Financial Times",
                 feedLink: "https://www.ft.com/",
-                itemCount: "12",
+                itemCount: "11",
                 isQuery: false,
                 tags: [
                     "ft",
@@ -214,7 +224,7 @@
                 title: "NYT &gt; Top Stories",
                 displayTitle: "NYT Home",
                 feedLink: "https://www.nytimes.com/",
-                itemCount: "17",
+                itemCount: "18",
                 isQuery: false,
                 tags: [
                     "nyt",
@@ -248,6 +258,48 @@
                     "nyt",
                     
                     "tech",
+                    ]
+            },
+            {
+                id: "8hHVpauQQYxfSCQodQMJ1HHPmEzpukdVYHkz1TmcJv4i93EZCim6M1DfhH4",
+                url: "https://www.theguardian.com/uk/business/rss",
+                title: "Business | The Guardian",
+                displayTitle: "Guardian Business",
+                feedLink: "https://www.theguardian.com/uk/business",
+                itemCount: "34",
+                isQuery: false,
+                tags: [
+                    "guardian",
+                    
+                    "finance",
+                    ]
+            },
+            {
+                id: "4W3i2hyrJTVgHvwgvzZ4NXZXYcF1bX1YT7GsgugANHGFRiLpXh4",
+                url: "https://www.theguardian.com/world/rss",
+                title: "World news | The Guardian",
+                displayTitle: "Guardian World",
+                feedLink: "https://www.theguardian.com/world",
+                itemCount: "42",
+                isQuery: false,
+                tags: [
+                    "guardian",
+                    
+                    "news",
+                    ]
+            },
+            {
+                id: "CQdwDW6BZfWWScSMFH8qccAEBNYHG6E6J88Vzbn5K7XSqQdmL4W4WaQkSwbRtDh",
+                url: "https://feeds.bbci.co.uk/news/business/rss.xml",
+                title: "BBC News",
+                displayTitle: "BBC Business",
+                feedLink: "https://www.bbc.co.uk/news/business",
+                itemCount: "30",
+                isQuery: false,
+                tags: [
+                    "bbc",
+                    
+                    "finance",
                     ]
             },
             {
@@ -367,7 +419,7 @@
       custom.js is a classic script so it runs before the deferred module
       below: it needs to wrap `fetch` before the SPA issues its first request.
     -->
-    <script src="./assets/custom.js?bt=1788047115"></script>
+    <script src="./assets/custom.js?bt=1788051679"></script>
     <script type="module" src="./assets/index.js?tv=1.3.0"></script>
 
   </body>
