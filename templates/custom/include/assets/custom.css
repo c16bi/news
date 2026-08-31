@@ -1797,11 +1797,8 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
 }
 
 #app #filter-search input {
-  margin: 0;
-}
-
-#app #filter-search input {
   width: 100%;
+  margin: 0;
   border-radius: 0.6rem;
   border: 1px solid var(--lb-hairline);
   background-color: var(--lb-surface);

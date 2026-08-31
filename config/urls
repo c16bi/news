@@ -53,12 +53,14 @@ https://www.theguardian.com/football/manchester-united/rss "~Guardian - Man Utd"
 # SB Nation runs every team blog on Vox Media's platform, which serves RSS at
 # /rss/index.xml on every property; the Post is WordPress, which serves /feed/.
 https://www.postingandtoasting.com/rss/index.xml "~Posting and Toasting" sport knicks
-https://nypost.com/sports/knicks/feed/ "~NY Post - Knicks" sport knicks
+# nypost.com/sports/knicks/feed/ returned nothing on a branch dry run. The
+# Post is WordPress, but its section pages do not expose /feed/; only the site
+# root does, which would be the whole paper rather than the Knicks.
 
 # New York Yankees
 # Same story: the ESPN feed was dead and league-wide.
 https://www.pinstripealley.com/rss/index.xml "~Pinstripe Alley" sport yankees
-https://nypost.com/sports/yankees/feed/ "~NY Post - Yankees" sport yankees
+# Same for the Post's Yankees section; see the note above.
 
 # Formula 1
 https://feeds.bbci.co.uk/sport/formula1/rss.xml "~BBC F1" sport f1
