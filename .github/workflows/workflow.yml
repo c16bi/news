@@ -18,11 +18,16 @@ jobs:
       pull-requests: write
     steps:
 
+      # Checks out whatever ref the run was started on, not always main. A feed
+      # URL cannot be validated by reading it - the only test is fetching it -
+      # so a branch that changes config/urls needs to be buildable before it is
+      # merged. The commit and push steps below are gated on main, so a run on
+      # a branch fetches the feeds, reports what came back, and writes nothing.
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: 'main'
+          ref: ${{ github.ref_name }}
 
       - name: Install deps
         run: sudo apt-get update && sudo apt-get install sqlite3 snapd
@@ -49,6 +54,7 @@ jobs:
         shell: bash
 
       - name: Cleanup last build
+        if: github.ref_name == 'main'
         run: |
           if echo $(git log --oneline -1) | grep -q "Feed rebuild @"; then
               git reset --soft HEAD~1
@@ -76,6 +82,14 @@ jobs:
         run: python3 ./scripts/harvest_images.py || true
         shell: bash
 
+      # Publishers declare their logo in the page head, at CDN paths no client
+      # could guess - which is why guessing three well-known URLs from the
+      # browser left most sources showing a monogram. One request per domain,
+      # cached, so this is a handful of fetches an hour at most.
+      - name: Harvest publisher icons
+        run: python3 ./scripts/harvest_icons.py || true
+        shell: bash
+
       # A source whose URL has rotted produces no page and says nothing about
       # it, so the site just shows one fewer feed. This turns that into a
       # warning on the run summary. Advisory only - never fails the build.
@@ -91,18 +105,21 @@ jobs:
 
       - name: Commit files
         id: commit
+        if: github.ref_name == 'main'
         run: |
-          git add ./docs ./config/image-cache.json
+          git add ./docs ./config/image-cache.json ./config/icon-cache.json
           let ts=$(date +"%s")
           git diff-index --quiet HEAD || git commit -m "Feed rebuild @ ${ts}" -a
         shell: bash
 
       - name: Clean unreachable objects
+        if: github.ref_name == 'main'
         run: |
           git reflog expire --expire-unreachable=now
           git gc --prune=now
 
       - name: Push changes
+        if: github.ref_name == 'main'
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

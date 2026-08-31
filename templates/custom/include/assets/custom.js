@@ -87,6 +87,30 @@
     /* private mode - the SPA falls back to its own default */
   }
 
+  /* One mixed feed rather than 24 stacked source sections.
+     The SPA calls this "firehose" and already implements it properly: a single
+     list, in time order, deduplicated across the query feeds and the source
+     feeds they draw from. It was reachable only from a button sitting in a row
+     of item-count options, where it read as "how much" rather than "how it is
+     arranged". Seeded here, ahead of the deferred bundle, so a first visit gets
+     it - and only when nothing has been chosen, so a later preference sticks. */
+  var FILTER_KEY = "liveboat-default-filters";
+  try {
+    if (localStorage.getItem(FILTER_KEY) === null) {
+      localStorage.setItem(
+        FILTER_KEY,
+        JSON.stringify({
+          itemCount: 20,
+          daysBackCount: 1,
+          filterByDays: false,
+          firehose: true,
+        }),
+      );
+    }
+  } catch (e) {
+    /* as above */
+  }
+
   /* ------------------------------------------------------------------ */
   /* layouts                                                             */
   /* ------------------------------------------------------------------ */
@@ -120,7 +144,7 @@
     {
       id: "e2",
       label: "Leads",
-      hint: "Each section opens with its best picture",
+      hint: "Each day opens with its best picture",
     },
   ];
 
@@ -351,7 +375,35 @@
     if (changed) save("icons", iconCache);
   })();
 
+  /* Logos the build resolved, read from the publisher's own page head. This
+     is authoritative where it has an answer; the browser probe below stays as
+     the fallback for publishers that refuse the build but not the reader. */
+  var buildIcons = Object.create(null);
+
+  function loadBuildIcons() {
+    var base = (window.sitePath || "/").replace(/\/?$/, "/");
+    fetch(base + "feeds/icons.json", { cache: "no-cache" })
+      .then(function (r) {
+        return r && r.ok ? r.json() : null;
+      })
+      .then(function (map) {
+        if (!map || typeof map !== "object") return;
+        var found = false;
+        for (var d in map) {
+          if (typeof map[d] === "string" && map[d]) {
+            buildIcons[d] = map[d];
+            found = true;
+          }
+        }
+        if (found) schedule();
+      })
+      .catch(function () {
+        /* offline, or an older build with no icons.json - probe as before */
+      });
+  }
+
   function knownIcon(domain) {
+    if (buildIcons[domain]) return buildIcons[domain];
     var hit = iconCache[domain];
     return hit && hit.url ? hit.url : "";
   }
@@ -878,7 +930,16 @@
   }
 
   function markSections() {
-    var wrappers = document.querySelectorAll(".feed-wrapper");
+    /* What counts as "a section" depends on how the feed is arranged. Grouped
+       by source, it is the source - e2 opens each publication with its best
+       picture. Merged into one list there are no sources to open, so the unit
+       becomes the day: the SPA still buckets a firehose by date, and leading
+       each day is the same idea applied to the shape actually on screen.
+       Without this, e2 in a merged feed would promote one photograph to the
+       very top and leave four hundred text lines under it. */
+    var wrappers = document.querySelectorAll(
+      mergedFeedOn() ? ".feed-item-group" : ".feed-wrapper",
+    );
     var leadWanted = currentLayout() === "e2";
 
     for (var i = 0; i < wrappers.length; i++) {
@@ -902,7 +963,12 @@
       }
 
       wrapper.classList.toggle("lb-section-nopix", leadWanted && !withImage);
-      syncNoPixNote(wrapper, leadWanted && !withImage && items.length > 0);
+      // The note names a publication that never sends pictures, which only
+      // means something when the sections are publications.
+      syncNoPixNote(
+        wrapper,
+        leadWanted && !withImage && items.length > 0 && !mergedFeedOn(),
+      );
     }
   }
 
@@ -1094,8 +1160,48 @@
     syncThemeRow();
   }
 
-  /* Firehose / Last day / Last 50 / Last 20 - the template's own row, mirrored
-     as real buttons that click the originals. */
+  /* The template's own row is Firehose / Last day / Last 50 / Last 20, four
+     mutually exclusive buttons. But Firehose is not a quantity like the other
+     three - it is the difference between one mixed feed and a stack of
+     per-source sections. Presented as a fourth amount, it read as noise. So it
+     is split out as its own switch here, and the three real amounts only
+     appear when it is off, since they have no meaning while it is on. */
+  function nativeRangeButton(match) {
+    var boxes = document.querySelectorAll(".filter-container .filter-box");
+    for (var i = 0; i < boxes.length; i++) {
+      var b = boxes[i].querySelector("button");
+      if (b && match.test((b.textContent || "").trim())) return b;
+    }
+    return null;
+  }
+
+  function mergedFeedOn() {
+    var b = nativeRangeButton(/firehose/i);
+    return !!(b && b.classList.contains("selected"));
+  }
+
+  function setMergedFeed(on) {
+    var b = nativeRangeButton(on ? /firehose/i : /last 20/i);
+    if (b && !b.classList.contains("selected")) b.click();
+    // The list is rebuilt asynchronously; re-read once it has been.
+    requestAnimationFrame(function () {
+      requestAnimationFrame(syncSettings);
+    });
+  }
+
+  function buildMergeRow(host) {
+    var row = makeToggleRow(
+      "One mixed feed",
+      "Every source in one list, newest first",
+      mergedFeedOn,
+      function () {
+        setMergedFeed(!mergedFeedOn());
+      },
+    );
+    row.id = "lb-merge-row";
+    host.appendChild(row);
+  }
+
   function buildRangeRow(host) {
     var boxes = document.querySelectorAll(".filter-container .filter-box");
     if (!boxes.length) return;
@@ -1123,9 +1229,26 @@
     host.appendChild(row);
   }
 
+  /* Kept apart from syncSettings so it can also run from the render loop: the
+     SPA re-renders after a click and only then marks the new button selected,
+     so anything read straight after a click reads the old state. */
+  function syncMergedClass() {
+    var merged = mergedFeedOn();
+    if (document.body.classList.contains("lb-merged") !== merged) {
+      document.body.classList.toggle("lb-merged", merged);
+    }
+    return merged;
+  }
+
   function syncRangeRow() {
+    var merged = syncMergedClass();
+
+    var heading = document.getElementById("lb-amount-heading");
+    if (heading) heading.hidden = merged;
+
     var row = document.getElementById("lb-range-row");
     if (!row) return;
+    row.hidden = merged;
     var buttons = row.querySelectorAll(".lb-range-btn");
     for (var i = 0; i < buttons.length; i++) {
       var native = buttons[i]._lbNative;
@@ -1241,7 +1364,11 @@
       ),
     );
 
-    var show = sheetSection(panel, "How much to show", "show");
+    buildMergeRow(reading);
+
+    var show = sheetSection(panel, "How many per source", "show");
+    var amountHeading = show.previousElementSibling;
+    if (amountHeading) amountHeading.id = "lb-amount-heading";
     buildRangeRow(show);
 
     var look = sheetSection(panel, "Appearance", "appearance");
@@ -1442,6 +1569,9 @@
   function refreshDock() {
     refreshEmptyState();
     refreshFilterChip();
+    // decorateAll runs on every SPA render, which is exactly when the answer
+    // to "is this merged?" can have changed under us.
+    syncSettings();
     if (!newBadge) return;
     var count = document.querySelectorAll(".feed-item.lb-new").length;
     if (count > 0 && lastVisit) {
@@ -2009,6 +2139,7 @@
   function boot() {
     buildProgressBar();
     buildDock();
+    loadBuildIcons();
     trackConnectivity();
     registerServiceWorker();
 
