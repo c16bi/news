@@ -1746,7 +1746,7 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
   height: auto;
   min-height: 0;
   padding: 0;
-  margin: 0 0 0.6rem;
+  margin: 0.25rem 0 0.85rem;
 }
 
 @media (max-width: 1000px) {
@@ -1781,7 +1781,15 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
   padding-bottom: 0.55rem;
 }
 
+/* Upstream takes this out of flow so it can sit beside the range buttons -
+   floated, then absolutely positioned at top:-22px on narrow screens. With
+   those buttons hidden there is nothing to sit beside, so it rode up over the
+   title while its container collapsed to 1px and the first headline came up
+   flush underneath. Putting it back in flow is what gives the container a real
+   height and the search box room on both sides. */
 #app #filter-search {
+  position: static;
+  float: none;
   display: flex;
   align-items: center;
   width: 100%;
@@ -1790,6 +1798,7 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
 
 #app #filter-search input {
   width: 100%;
+  margin: 0;
   border-radius: 0.6rem;
   border: 1px solid var(--lb-hairline);
   background-color: var(--lb-surface);
@@ -2322,4 +2331,19 @@ body.lb-inapp #app .feed-item .article-expand {
 body[data-lb-layout="e1"] #app .feed-item .article-expand,
 body[data-lb-layout="e2"] #app .feed-item .article-expand {
   display: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* one mixed feed                                                      */
+/* ------------------------------------------------------------------ */
+
+/* Merged, there is a single section and its heading reads "Firehose" - a
+   label for the whole page, sitting where a source name would go, above
+   everything. The page already has a title. */
+body.lb-merged #app .feed-title {
+  display: none;
+}
+
+body.lb-merged #app .feed-wrapper {
+  padding-bottom: 0;
 }

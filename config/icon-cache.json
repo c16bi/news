@@ -1,1 +1,58 @@
-{}
+{
+ "arstechnica.com": {
+  "ts": 1788217688,
+  "url": ""
+ },
+ "autosport.com": {
+  "ts": 1788217688,
+  "url": ""
+ },
+ "bbc.co.uk": {
+  "ts": 1788217688,
+  "url": "https://static.files.bbci.co.uk/core/website/assets/static/icons/touch/bbc/touch-icon-512.8ff92996d8.png"
+ },
+ "bloomberg.com": {
+  "ts": 1788217688,
+  "url": ""
+ },
+ "cyclingnews.com": {
+  "ts": 1788217688,
+  "url": "https://cdn.mos.cms.futurecdn.net/flexiimages/024zxm1hr71715762251.png"
+ },
+ "economist.com": {
+  "ts": 1788217688,
+  "url": ""
+ },
+ "ft.com": {
+  "ts": 1788217688,
+  "url": ""
+ },
+ "nytimes.com": {
+  "ts": 1788217688,
+  "url": "https://static01.nyt.com/vi-assets/static-assets/assets/favicon-BfpYO4zl.svg"
+ },
+ "pinstripealley.com": {
+  "ts": 1788217688,
+  "url": "https://platform.sbnation.com/wp-content/uploads/sites/2/team-logos/logo-pinstripealley.png?w=180"
+ },
+ "postingandtoasting.com": {
+  "ts": 1788217688,
+  "url": "https://platform.sbnation.com/wp-content/uploads/sites/2/team-logos/logo-postingandtoasting.png?w=180"
+ },
+ "the-race.com": {
+  "ts": 1788217688,
+  "url": "https://storage.googleapis.com/the-race-com.appspot.com/1/2020/03/cropped-android-chrome-512x512-1-192x192.png"
+ },
+ "theguardian.com": {
+  "ts": 1788217688,
+  "url": "https://assets.guim.co.uk/static/frontend/icons/homescreen/apple-touch-icon.svg"
+ },
+ "theverge.com": {
+  "ts": 1788217688,
+  "url": "https://www.theverge.com/static-assets/icons/apple-touch-icon.png"
+ },
+ "velo.outsideonline.com": {
+  "ts": 1788217688,
+  "url": ""
+ }
+}
