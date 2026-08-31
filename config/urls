@@ -22,11 +22,12 @@ https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml "~NYT Home" nyt news
 https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml "~NYT Politics" nyt politics
 https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml "~NYT Tech" nyt tech
 
-# AP News
-# The old feeds.apnews.com/apf-* endpoints were retired and had been returning
-# nothing for some time; these are AP's current hub feeds.
-https://apnews.com/hub/ap-top-news.rss "~AP Top News" ap news
-https://apnews.com/hub/business.rss "~AP Business" ap finance
+# AP News - removed, not broken-and-left.
+# The feeds.apnews.com/apf-* endpoints AP retired returned nothing; their
+# apnews.com/hub/*.rss successors returned nothing either. Two guesses, two
+# empty feeds, and AP publishes no documented public RSS to guess a third time
+# from. Reuters is the same story - it withdrew its public news feeds. Wire
+# coverage comes from the Guardian and the BBC below, both of which answer.
 
 # The Guardian
 # Added for pictures as much as for coverage: the Guardian is the one source
@@ -47,15 +48,30 @@ https://feeds.bbci.co.uk/sport/football/teams/manchester-united/rss.xml "~BBC - 
 https://www.theguardian.com/football/manchester-united/rss "~Guardian - Man Utd" sport mufc
 
 # New York Knicks
-https://www.espn.com/espn/rss/nba/news "~ESPN NBA" sport knicks
+# The ESPN feed here was dead, and was league-wide rather than team-specific
+# even when it worked - NBA news, not Knicks news. These are team desks.
+# SB Nation runs every team blog on Vox Media's platform, which serves RSS at
+# /rss/index.xml on every property; the Post is WordPress, which serves /feed/.
+https://www.postingandtoasting.com/rss/index.xml "~Posting and Toasting" sport knicks
+https://nypost.com/sports/knicks/feed/ "~NY Post - Knicks" sport knicks
 
 # New York Yankees
-https://www.espn.com/espn/rss/mlb/news "~ESPN MLB" sport yankees
+# Same story: the ESPN feed was dead and league-wide.
+https://www.pinstripealley.com/rss/index.xml "~Pinstripe Alley" sport yankees
+https://nypost.com/sports/yankees/feed/ "~NY Post - Yankees" sport yankees
 
 # Formula 1
 https://feeds.bbci.co.uk/sport/formula1/rss.xml "~BBC F1" sport f1
 https://www.autosport.com/rss/feed/all "~Autosport" sport f1
+https://www.the-race.com/feed/ "~The Race" sport f1
 
 # Cycling
 https://www.cyclingnews.com/rss "~CyclingNews" sport cycling
 https://www.velonews.com/feed/ "~VeloNews" sport cycling
+
+# Technology
+# Tech was one NYT feed, 29 articles out of 466, for something on the interest
+# list. The Verge is Vox Media (same /rss/index.xml as the SB Nation blogs
+# above) and puts an image on nearly every item; Ars runs its own feed host.
+https://www.theverge.com/rss/index.xml "~The Verge" tech
+https://feeds.arstechnica.com/arstechnica/index "~Ars Technica" tech
