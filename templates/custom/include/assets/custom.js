@@ -238,15 +238,24 @@
   // "text/plain" even for JPEGs - so the extension is what decides.
   var IMAGE_RE = /\.(jpe?g|png|webp|avif|gif)(\?|#|$)/i;
 
+  /* Images that failed to load. A picture can be present in the metadata and
+     still not render - the publisher's CDN refuses the referrer, the file has
+     gone, the network dropped. Remembering which ones died matters most to e2,
+     which promotes a row *because* it has a picture: without this, a lead
+     whose image fails stays promoted at full width with nothing in it. Kept in
+     memory only, so a genuine outage is retried on the next visit rather than
+     written off. */
+  var deadImages = Object.create(null);
+
   function imageFor(item) {
     // lbImage is added at build time by scripts/harvest_images.py, which reads
     // the article's og:image for the roughly half of these feeds that publish
     // no media in their RSS. Absent for anything it could not reach, so the
     // enclosure stays the fallback and no image at all stays valid.
     var harvested = (item.lbImage || "").trim();
-    if (harvested) return harvested;
+    if (harvested && !deadImages[harvested]) return harvested;
     var url = (item.enclosureUrl || "").trim();
-    if (!url) return "";
+    if (!url || deadImages[url]) return "";
     var mime = item.enclosureMime || "";
     if (mime.indexOf("image/") === 0) return url;
     return IMAGE_RE.test(url) ? url : "";
@@ -543,6 +552,15 @@
     img.addEventListener("error", function () {
       img.remove();
       li.classList.remove("lb-has-image");
+      // Take it out of the running and re-pick: in e2 this row may be the
+      // section's lead, and a lead with no picture is the one thing that
+      // layout must not produce.
+      if (info.img && !deadImages[info.img]) {
+        deadImages[info.img] = 1;
+        info.img = imageFor({ lbImage: "", enclosureUrl: "" });
+        li.classList.remove("lb-lead");
+        schedule();
+      }
     });
     img.src = info.img;
     li.insertBefore(img, li.firstChild);
@@ -926,7 +944,8 @@
     var anchor = li.querySelector(".feed-item-link a[href]");
     if (!anchor) return "";
     var info = meta[anchor.href];
-    return info && info.img ? info.img : "";
+    if (!info || !info.img || deadImages[info.img]) return "";
+    return info.img;
   }
 
   function markSections() {
@@ -1445,6 +1464,70 @@
     });
 
     document.body.appendChild(settingsSheet);
+  }
+
+  /* "Am I looking at the current build?" had no answer on the page. The
+     template's own header carried an "Updated on ..." line, and hiding that
+     chrome took the answer with it - which matters more here than in most
+     sites, because a service worker can serve a perfectly good page that is
+     hours old. window.buildTime is stamped into the HTML by the generator, so
+     it describes the build actually being rendered, not the time now.
+
+     Tapping it asks the worker to check for a newer one. */
+  function buildStamp() {
+    var when = Number(window.buildTime || 0);
+    if (!when) return;
+
+    var stamp = document.createElement("button");
+    stamp.id = "lb-build-stamp";
+    stamp.type = "button";
+
+    var label = document.createElement("span");
+    label.className = "lb-stamp-text";
+    stamp.appendChild(label);
+
+    function paint() {
+      label.textContent = "Updated " + relativeTime(when);
+      stamp.title =
+        "Built " + fullDate(when) + " - tap to check for a newer one";
+    }
+    paint();
+    // The page can sit open for hours; a stale "Updated 2m ago" would be
+    // exactly the reassurance it should not be giving.
+    window.setInterval(paint, 60000);
+
+    stamp.addEventListener("click", function () {
+      label.textContent = "Checking\u2026";
+      var done = function (message) {
+        label.textContent = message;
+        window.setTimeout(paint, 2500);
+      };
+      if (!("serviceWorker" in navigator)) {
+        window.location.reload();
+        return;
+      }
+      navigator.serviceWorker
+        .getRegistration()
+        .then(function (reg) {
+          if (!reg) {
+            window.location.reload();
+            return;
+          }
+          // If a new worker takes over, the inline snippet in the HTML reloads
+          // the page for us, so this only has to report the no-change case.
+          return reg.update().then(function () {
+            done(
+              reg.installing || reg.waiting ? "Updating\u2026" : "Up to date",
+            );
+          });
+        })
+        .catch(function () {
+          done("Check failed");
+        });
+    });
+
+    var host = document.querySelector("#app .header-title");
+    (host || document.body).appendChild(stamp);
   }
 
   function buildDock() {
@@ -2139,6 +2222,7 @@
   function boot() {
     buildProgressBar();
     buildDock();
+    buildStamp();
     loadBuildIcons();
     trackConnectivity();
     registerServiceWorker();
