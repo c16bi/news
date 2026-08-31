@@ -76,6 +76,14 @@ jobs:
         run: python3 ./scripts/harvest_images.py || true
         shell: bash
 
+      # Publishers declare their logo in the page head, at CDN paths no client
+      # could guess - which is why guessing three well-known URLs from the
+      # browser left most sources showing a monogram. One request per domain,
+      # cached, so this is a handful of fetches an hour at most.
+      - name: Harvest publisher icons
+        run: python3 ./scripts/harvest_icons.py || true
+        shell: bash
+
       # A source whose URL has rotted produces no page and says nothing about
       # it, so the site just shows one fewer feed. This turns that into a
       # warning on the run summary. Advisory only - never fails the build.
@@ -92,7 +100,7 @@ jobs:
       - name: Commit files
         id: commit
         run: |
-          git add ./docs ./config/image-cache.json
+          git add ./docs ./config/image-cache.json ./config/icon-cache.json
           let ts=$(date +"%s")
           git diff-index --quiet HEAD || git commit -m "Feed rebuild @ ${ts}" -a
         shell: bash

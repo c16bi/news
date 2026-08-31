@@ -375,7 +375,35 @@
     if (changed) save("icons", iconCache);
   })();
 
+  /* Logos the build resolved, read from the publisher's own page head. This
+     is authoritative where it has an answer; the browser probe below stays as
+     the fallback for publishers that refuse the build but not the reader. */
+  var buildIcons = Object.create(null);
+
+  function loadBuildIcons() {
+    var base = (window.sitePath || "/").replace(/\/?$/, "/");
+    fetch(base + "feeds/icons.json", { cache: "no-cache" })
+      .then(function (r) {
+        return r && r.ok ? r.json() : null;
+      })
+      .then(function (map) {
+        if (!map || typeof map !== "object") return;
+        var found = false;
+        for (var d in map) {
+          if (typeof map[d] === "string" && map[d]) {
+            buildIcons[d] = map[d];
+            found = true;
+          }
+        }
+        if (found) schedule();
+      })
+      .catch(function () {
+        /* offline, or an older build with no icons.json - probe as before */
+      });
+  }
+
   function knownIcon(domain) {
+    if (buildIcons[domain]) return buildIcons[domain];
     var hit = iconCache[domain];
     return hit && hit.url ? hit.url : "";
   }
@@ -2111,6 +2139,7 @@
   function boot() {
     buildProgressBar();
     buildDock();
+    loadBuildIcons();
     trackConnectivity();
     registerServiceWorker();
 
