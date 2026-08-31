@@ -510,15 +510,34 @@ body.lb-saved-only
   display: none;
 }
 
-body.lb-saved-only #app .filter-container::after,
-body.lb-hide-read #app .filter-container::after {
-  content: "Filtered view";
-  display: block;
-  clear: both;
-  padding-top: 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--color-custom);
+/* A live filter used to announce itself as a line of coloured text centred in
+   the header's empty space, unattached to anything and with no way to act on
+   it. It is a chip beside the search now, and tapping it clears the filter. */
+#lb-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.6rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.7rem;
+  border: 1px solid var(--lb-card-border);
+  border-radius: 999px;
+  background-color: var(--lb-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#lb-filter-chip::after {
+  content: "\00d7";
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--lb-faint);
+}
+
+#lb-filter-chip:hover {
+  background-color: var(--lb-row-hover);
 }
 
 /* Shown when a filter has hidden every article - otherwise the page is
@@ -1707,16 +1726,6 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
   display: none;
 }
 
-/* A bare 15-option <select> was the second element on the page. */
-#app #theme-selector {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 /* Firehose / Last day / Last 50 / Last 20 -> "How much to show" in the sheet. */
 #app .filter-container .filter-box {
   display: none;
@@ -1727,11 +1736,49 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
 }
 
 /* Search stays on the page: it is the one control here that gets reached for
-   mid-read, and burying it behind a menu would cost more than it saves. */
+   mid-read, and burying it behind a menu would cost more than it saves.
+
+   `height: auto` is the load-bearing line. Upstream fixes this container to
+   96px on narrow screens to fit the range buttons; hiding those buttons left
+   the 96px behind as a band of nothing between the title and the search box.
+   Zeroing the padding was not enough - the height was doing it. */
 #app .filter-container {
-  padding: 0;
-  margin: 0 0 0.5rem;
+  height: auto;
   min-height: 0;
+  padding: 0;
+  margin: 0 0 0.6rem;
+}
+
+@media (max-width: 1000px) {
+  #app .filter-container {
+    height: auto;
+  }
+}
+
+/* Upstream gives this a fixed 0 height and lets three ~30px icons spill out of
+   it, which is what put a floating row of glyphs in the gap under the title.
+   The same three links live in the settings sheet now. */
+#app #icons-aggro {
+  display: none;
+}
+
+/* A bare 15-option <select> was the second element on the page. It is driven
+   from the settings sheet now but has to stay in the DOM and stay focusable
+   for the SPA to read it, so it is taken out of flow and clipped rather than
+   removed or display:none'd. */
+#app #theme-selector {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#app .header-container {
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.55rem;
 }
 
 #app #filter-search {
@@ -1832,52 +1879,29 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
 /* layouts: e1 (mixed weight) and e2 (picture leads)                   */
 /* ------------------------------------------------------------------ */
 
-/* Both wear the same skin - warm newsprint, one ink red, a display serif for
-   headlines - and differ only in what they do with pictures. e1 keeps strict
-   reverse-chronological order and lets rows with a picture and rows without
-   alternate. e2 promotes each section's newest picture to a full-width lead
-   and runs the remainder as a tight list.
+/* Both share an editorial treatment - a display serif for headlines,
+   condensed uppercase furniture, hairline rules - and differ only in what they
+   do with pictures. e1 keeps strict reverse-chronological order and lets rows
+   with a picture and rows without alternate. e2 promotes each section's newest
+   picture to a full-width lead and runs the remainder as a tight list.
 
-   The palette is redefined on <body> rather than :root on purpose. The
-   template writes its own values to :root with !important, which wins only
-   among declarations on that same element - body's own value is what body and
-   its descendants resolve. That is also how the SPA's own themes work. */
+   Colour comes from the active theme, exactly as it does in every other
+   layout. An earlier version hard-coded a cream newsprint palette and fought
+   the theme rules with !important to make it stick, which meant picking one of
+   these layouts silently overrode a theme you had chosen. What carries the
+   editorial feel is the typography and the structure, and those cost nothing
+   in contrast - they work as well on ink as on paper. */
 
-/* !important here is not a shortcut, it is the only key that fits the lock.
-   Every built-in theme declares its palette as
-   `.seabreeze-theme { --color-background: #e1e2e7 !important; ... }`,
-   so no amount of specificity in a normal declaration can displace it. Among
-   important declarations specificity decides again, which is what the
-   lb-own-skin class buys: class-plus-attribute (0,2,1) outranks the theme's
-   single class (0,1,1). The five variables below are the whole override; every
-   rule after this one is ordinary. */
-body.lb-own-skin[data-lb-layout="e1"],
-body.lb-own-skin[data-lb-layout="e2"] {
-  --color-background: #f5f1e6 !important;
-  --color-text: #24211c !important;
-  --color-accent: #e9e3d2 !important;
-  --color-highlight: #b8352a !important;
-  --color-custom: #b8352a !important;
-
-  --lb-hairline: rgb(36 33 28 / 16%);
-  --lb-muted: rgb(36 33 28 / 88%);
-  --lb-faint: rgb(36 33 28 / 58%);
-  --lb-surface: rgb(36 33 28 / 5%);
-  --lb-row-hover: rgb(36 33 28 / 7%);
-  --lb-card-bg: transparent;
-  --lb-card-border: rgb(36 33 28 / 14%);
-
-  /* Playfair is the character of this layout, but it is one webfont on a page
-     that must work offline, so the fallback is a real stack rather than a
-     shrug - Iowan and Palatino ship on Apple devices, Noto Serif on Android. */
+body[data-lb-layout="e1"],
+body[data-lb-layout="e2"] {
+  /* Iowan and Palatino ship on Apple devices, Noto Serif on Android, so the
+     page is already set in a real serif before Playfair arrives - and stays
+     that way offline or if fonts.gstatic.com is blocked. */
   --lb-serif:
     "Playfair Display", "Iowan Old Style", "Palatino Linotype", "Noto Serif",
     Georgia, serif;
   --lb-sans:
     "Archivo Narrow", ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
-
-  background-color: var(--color-background);
-  color: var(--color-text);
 }
 
 body[data-lb-layout="e1"] #app,
@@ -1890,7 +1914,7 @@ body[data-lb-layout="e2"] #app {
 
 body[data-lb-layout="e1"] #app .header-container,
 body[data-lb-layout="e2"] #app .header-container {
-  border-bottom: 2px solid var(--color-text);
+  border-bottom: 2px solid rgb(from var(--color-text) r g b / 60%);
   padding-bottom: 0.5rem;
   margin-bottom: 0.5rem;
 }
@@ -1908,7 +1932,8 @@ body[data-lb-layout="e2"] #app .header-title h2 {
 body[data-lb-layout="e1"] #app .feed-title,
 body[data-lb-layout="e2"] #app .feed-title {
   display: flex;
-  align-items: baseline;
+  flex-direction: row;
+  align-items: center;
   gap: 0.5rem;
   font-family: var(--lb-sans);
   font-size: 0.7rem;
@@ -1916,7 +1941,7 @@ body[data-lb-layout="e2"] #app .feed-title {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-highlight);
-  border-bottom: 1px solid var(--color-text);
+  border-bottom: 1px solid rgb(from var(--color-text) r g b / 45%);
   padding-bottom: 0.3rem;
   margin: 1.6rem 0 0.2rem;
 }
@@ -2049,8 +2074,11 @@ body[data-lb-layout="e1"] #app li.feed-item .lb-star {
    back - and would arrive carrying the wrong article's decoration. A flex
    column reorders visually and leaves the DOM exactly as Vue wrote it. */
 
+/* :not(.feed-title) matters. The section header is also a direct div child of
+   .feed-wrapper, so the unqualified selector turned the header itself into a
+   column flex box and dropped its collapse/expand buttons onto a second line. */
 body[data-lb-layout="e2"] #app .feed-item-group ul,
-body[data-lb-layout="e2"] #app .feed-wrapper > div {
+body[data-lb-layout="e2"] #app .feed-wrapper > div:not(.feed-title) {
   display: flex;
   flex-direction: column;
 }
@@ -2059,7 +2087,7 @@ body[data-lb-layout="e2"] #app li.feed-item.lb-lead {
   order: -1;
   display: block;
   padding: 0.9rem 0 1.1rem;
-  border-bottom: 2px solid var(--color-text);
+  border-bottom: 2px solid rgb(from var(--color-text) r g b / 45%);
 }
 
 body[data-lb-layout="e2"] #app li.feed-item.lb-lead .lb-thumb {
@@ -2147,13 +2175,6 @@ body[data-lb-layout="e2"] #app .feed-item-domain {
   align-items: center;
   gap: 0.4rem;
   min-height: 1.1rem;
-}
-
-/* The inline expand caret landed in the middle of a headline and broke the
-   line. Tapping the headline already opens a preview with the same summary. */
-body[data-lb-layout="e1"] #app .article-expand,
-body[data-lb-layout="e2"] #app .article-expand {
-  display: none;
 }
 
 /* Upstream sets the section name as a filled chip. On newsprint the rule under
@@ -2249,4 +2270,56 @@ body[data-lb-layout="e2"] #app li.feed-item:not(.lb-lead) .lb-star {
   grid-column: 2;
   grid-row: 2;
   justify-self: end;
+}
+
+/* ------------------------------------------------------------------ */
+/* the inline expand control                                           */
+/* ------------------------------------------------------------------ */
+
+/* Upstream puts this button inside the headline link, so it sets inline with
+   the last word and lands mid-sentence when a headline wraps - reading as a
+   stray glyph rather than a control. It still works and is still reachable;
+   it just no longer interrupts the sentence. Sized to a real tap target and
+   dropped to the metadata line's weight. */
+#app .feed-item .article-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-left: 0.35rem;
+  vertical-align: -0.35rem;
+  border-radius: 999px;
+  border: none;
+  background: none;
+  color: var(--lb-faint);
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+#app .feed-item .article-expand svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+@media (hover: hover) {
+  #app .feed-item .article-expand:hover {
+    opacity: 1;
+    background-color: var(--lb-row-hover);
+  }
+}
+
+/* When in-app reading is on, tapping the headline opens a sheet carrying the
+   same summary this button expands, so it is a second control for one thing -
+   and the one that sets in the middle of a wrapped headline. It comes back the
+   moment articles are set to open in the browser instead. */
+body.lb-inapp #app .feed-item .article-expand {
+  display: none;
+}
+
+/* In the editorial layouts a serif headline is the whole point: nothing
+   interrupts it either way. */
+body[data-lb-layout="e1"] #app .feed-item .article-expand,
+body[data-lb-layout="e2"] #app .feed-item .article-expand {
+  display: none;
 }
