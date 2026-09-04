@@ -1787,13 +1787,38 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
    title while its container collapsed to 1px and the first headline came up
    flush underneath. Putting it back in flow is what gives the container a real
    height and the search box room on both sides. */
+/* Three declarations that have to move together.
+
+   Upstream positions this box absolutely and centres it with the two-part
+   idiom `left: 50%` + `translateX(-50%)`. Pulling it back into flow needs all
+   three neutralised, not one: dropping to position:static made `left` inert
+   but left the transform in force, so the box slid half its own width off the
+   left edge of the screen - and it also destroyed the containing block, which
+   sent the absolutely positioned search icon inside it off to resolve against
+   some ancestor instead, landing below the box.
+
+   `relative` is the answer rather than `static`: it is in flow, so the flex
+   parent lays it out and centres it, while still being a containing block for
+   the icon. `left: auto` and `transform: none` disarm the centring idiom. */
 #app #filter-search {
-  position: static;
+  position: relative;
+  left: auto;
+  transform: none;
   float: none;
   display: flex;
   align-items: center;
   width: 100%;
   margin: 0;
+}
+
+/* Upstream pins the magnifier at top:22px, a number calibrated for the 96px
+   container it used to sit in. With the box now its own height (32px) that
+   number drops the icon below it. Centred instead, so it holds whatever the
+   input's height turns out to be. */
+#app #filter-search-icon {
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
 }
 
 #app #filter-search input {
@@ -2346,4 +2371,32 @@ body.lb-merged #app .feed-title {
 
 body.lb-merged #app .feed-wrapper {
   padding-bottom: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* build stamp                                                         */
+/* ------------------------------------------------------------------ */
+
+/* Small enough to ignore while reading, present enough to answer "is this
+   current?" without opening anything. */
+#lb-build-stamp {
+  display: block;
+  margin: 0.1rem 0 0;
+  padding: 0.15rem 0;
+  border: none;
+  background: none;
+  color: var(--lb-faint);
+  font: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  text-align: left;
+}
+
+@media (hover: hover) {
+  #lb-build-stamp:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
 }
