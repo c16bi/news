@@ -2400,3 +2400,587 @@ body.lb-merged #app .feed-wrapper {
     text-underline-offset: 2px;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* layouts: f1-f4 - edge to edge, no cards                             */
+/* ------------------------------------------------------------------ */
+
+/* Every other layout puts an article inside something: a card fill, a
+   rounded corner, a page gutter. These four take all of that away and let
+   the row own the full width of the glass, so the picture is the widest
+   thing on screen rather than a thumbnail inside a box.
+
+   Two rules keep that from going wrong, and the first draft of these
+   layouts broke both.
+
+   One: full width is for pictures, not for sentences. A headline set across
+   1400px is a line no eye tracks; --lb-measure caps the text and leaves the
+   picture alone. On a phone the cap is wider than the screen, so it costs
+   nothing there.
+
+   Two: an image told to fill the width fills whatever width it is given. The
+   same rule that makes a 219px picture on a phone makes a 540px one on a
+   laptop. So the full-bleed layouts tile into columns as the window grows -
+   the picture still runs to both edges of the page, it just stops being a
+   billboard. */
+
+body[data-lb-layout^="f"] #app {
+  /* 100% rather than 100vw: vw includes the scrollbar and would push the
+     page sideways on a desktop browser that reserves one. */
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding-left: 0;
+  padding-right: 0;
+  --lb-gut: 1rem;
+  --lb-measure: 34rem;
+}
+
+@media (min-width: 1024px) {
+  body[data-lb-layout^="f"] #app {
+    width: 100%;
+    padding: 0 0 6rem;
+    --lb-gut: 1.5rem;
+  }
+}
+
+/* Only the article rows go edge to edge. The masthead, the toolbar and the
+   day rules are furniture and still need a margin, or they sit against the
+   glass with nothing to align to. */
+body[data-lb-layout^="f"] #app .header-container,
+body[data-lb-layout^="f"] #app .filter-container,
+body[data-lb-layout^="f"] #app .feed-title,
+body[data-lb-layout^="f"] #app .feed-group-date,
+body[data-lb-layout^="f"] #app .feed-navigator {
+  padding-left: var(--lb-gut);
+  padding-right: var(--lb-gut);
+}
+
+/* Above 1150px upstream lifts the day label out of the flow and hangs it in
+   the left margin, at a fixed 94px wide. These layouts have no left margin
+   to hang it in - it lands off the side of the screen - and a fixed-width box
+   cannot take the gutter padding above without squeezing its own text in
+   half. So the day goes back in the flow and reads as a heading over the
+   day's stories, which is what it is once the page runs edge to edge. */
+body[data-lb-layout^="f"] #app .feed-group-date {
+  position: static;
+  width: auto;
+  text-align: left;
+  display: block;
+  padding-top: 0.9rem;
+  padding-bottom: 0.2rem;
+}
+
+body[data-lb-layout^="f"] #app .feed-item-group ul {
+  padding-left: 0;
+  margin: 0;
+}
+
+body[data-lb-layout^="f"] #app li.feed-item {
+  border-radius: 0;
+  background: none;
+  border-bottom: 1px solid var(--lb-hairline);
+}
+
+body[data-lb-layout^="f"] #app li.feed-item:hover {
+  background: none;
+}
+
+body[data-lb-layout^="f"] #app .feed-item-author {
+  display: none;
+}
+
+/* The dense layouts drop the source name on a narrow screen and lean on the
+   monogram. Here there is no card outline, so the name is what tells one
+   story from the next - it stays. */
+body[data-lb-layout^="f"] #app .lb-source-label {
+  display: inline;
+}
+
+/* ------------------------------------------------------------------ */
+/* f1 - Bleed                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Picture spans the glass, words tuck underneath. A story with no picture
+   keeps the same left edge and simply loses the image, so a run of Bloomberg
+   and FT reads as a tighter passage rather than a row of empty frames. */
+
+body[data-lb-layout="f1"] #app li.feed-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 0 1.1rem;
+  margin-bottom: 1.1rem;
+}
+
+body[data-lb-layout="f1"] #app .lb-thumb {
+  order: 1;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  margin-bottom: 0.7rem;
+  background-color: rgb(from var(--color-text) r g b / 7%);
+}
+
+body[data-lb-layout="f1"] #app .feed-item-domain,
+body[data-lb-layout="f1"] #app .feed-item-link,
+body[data-lb-layout="f1"] #app .lb-time,
+body[data-lb-layout="f1"] #app .feed-item > .feed-item-details {
+  display: block;
+  width: auto;
+  max-width: var(--lb-measure);
+  flex: none;
+  padding-left: var(--lb-gut);
+  padding-right: var(--lb-gut);
+  text-align: left;
+}
+
+body[data-lb-layout="f1"] #app .feed-item-domain {
+  order: 2;
+  margin-bottom: 0.25rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+body[data-lb-layout="f1"] #app .feed-item-link {
+  order: 3;
+}
+
+body[data-lb-layout="f1"] #app .feed-item-link a {
+  font-size: 1.3rem;
+  line-height: 1.24;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+body[data-lb-layout="f1"] #app .lb-time {
+  order: 4;
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+}
+
+body[data-lb-layout="f1"] #app .feed-item > .feed-item-details {
+  order: 5;
+  max-width: var(--lb-measure);
+  padding-top: 0.7rem;
+}
+
+/* Without a picture the row does not need the breathing space the picture
+   earns, or a run of them reads as gaps in the feed. */
+body[data-lb-layout="f1"] #app li.feed-item:not(.lb-has-image) {
+  padding-top: 0.85rem;
+  padding-bottom: 0.85rem;
+  margin-bottom: 0;
+}
+
+body[data-lb-layout="f1"] #app .lb-star {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.6rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* f2 - Edge                                                           */
+/* ------------------------------------------------------------------ */
+
+/* Headline left, picture as a slab off the right edge of the screen with no
+   gutter behind it. Because the picture is a fraction of the width rather
+   than all of it, this is the one full-width layout a wide window does not
+   turn into a poster - and it keeps the density of the dense layouts. */
+
+body[data-lb-layout="f2"] #app li.feed-item {
+  display: grid;
+  grid-template-columns: 1fr 0;
+  grid-template-areas:
+    "meta ."
+    "head pic"
+    "time pic";
+  column-gap: 0;
+  row-gap: 0.15rem;
+  align-items: start;
+  padding: 0.8rem 0;
+}
+
+body[data-lb-layout="f2"] #app li.feed-item.lb-has-image {
+  grid-template-columns: 1fr 34vw;
+  grid-template-areas:
+    "meta pic"
+    "head pic"
+    "time pic";
+}
+
+@media (min-width: 780px) {
+  body[data-lb-layout="f2"] #app li.feed-item.lb-has-image {
+    grid-template-columns: 1fr 18vw;
+  }
+}
+
+body[data-lb-layout="f2"] #app .feed-item-domain {
+  grid-area: meta;
+  padding-left: var(--lb-gut);
+  padding-right: 0.9rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+body[data-lb-layout="f2"] #app .feed-item-link {
+  grid-area: head;
+  min-width: 0;
+  max-width: var(--lb-measure);
+  padding-left: var(--lb-gut);
+  padding-right: 0.9rem;
+}
+
+body[data-lb-layout="f2"] #app .feed-item-link a {
+  font-size: 1.03rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+body[data-lb-layout="f2"] #app .lb-time {
+  grid-area: time;
+  width: auto;
+  flex: none;
+  text-align: left;
+  padding-left: var(--lb-gut);
+  padding-top: 0.25rem;
+  font-size: 0.72rem;
+}
+
+body[data-lb-layout="f2"] #app .lb-thumb {
+  grid-area: pic;
+  width: 100%;
+  height: 100%;
+  min-height: 5.2rem;
+  object-fit: cover;
+  align-self: stretch;
+  background-color: rgb(from var(--color-text) r g b / 7%);
+}
+
+body[data-lb-layout="f2"] #app .lb-star {
+  position: absolute;
+  left: 0.05rem;
+  bottom: 0.5rem;
+}
+
+body[data-lb-layout="f2"] #app .feed-item > .feed-item-details {
+  grid-column: 1 / -1;
+  max-width: var(--lb-measure);
+  padding: 0.7rem var(--lb-gut) 0.25rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* f3 - Immersive                                                      */
+/* ------------------------------------------------------------------ */
+
+/* Headline set over the photograph. The thing that makes this work is that a
+   story without a picture is the same row with the picture removed - same
+   left edge, same order, same type - rather than a differently-coloured band,
+   which is what made the first version read as two products stacked
+   together. */
+
+body[data-lb-layout="f3"] #app li.feed-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-end;
+  position: relative;
+  isolation: isolate;
+  padding: 0.9rem 0;
+  margin: 0;
+}
+
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image {
+  aspect-ratio: 5 / 4;
+  padding: 0 0 0.2rem;
+  border-bottom: none;
+  margin-bottom: 1px;
+}
+
+body[data-lb-layout="f3"] #app .lb-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+}
+
+/* The scrim, not the theme, is what makes white type legible over an unknown
+   photograph - so this is the one place a fixed dark gradient is right
+   whichever palette is active. */
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to top,
+    rgb(0 0 0 / 90%) 0%,
+    rgb(0 0 0 / 68%) 26%,
+    rgb(0 0 0 / 18%) 58%,
+    rgb(0 0 0 / 0%) 82%
+  );
+}
+
+body[data-lb-layout="f3"] #app .feed-item-domain,
+body[data-lb-layout="f3"] #app .feed-item-link,
+body[data-lb-layout="f3"] #app .lb-time {
+  flex: none;
+  width: auto;
+  max-width: var(--lb-measure);
+  text-align: left;
+  padding-left: var(--lb-gut);
+  padding-right: var(--lb-gut);
+}
+
+body[data-lb-layout="f3"] #app .feed-item-domain {
+  order: 1;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+body[data-lb-layout="f3"] #app .feed-item-link {
+  order: 2;
+  padding-top: 0.28rem;
+}
+
+body[data-lb-layout="f3"] #app .feed-item-link a {
+  font-size: 1.3rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+body[data-lb-layout="f3"] #app .lb-time {
+  order: 3;
+  padding-top: 0.3rem;
+  padding-bottom: 0.75rem;
+  font-size: 0.7rem;
+}
+
+/* Over a photograph the type is white and needs the shadow; off one it is
+   the theme's own text on the theme's own ground and needs neither. */
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image .feed-item-domain,
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image .feed-item-link a,
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image .lb-time {
+  color: #fff;
+  text-shadow: 0 1px 10px rgb(0 0 0 / 60%);
+}
+
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image .feed-item-domain {
+  color: rgb(255 255 255 / 82%);
+}
+
+/* Bottom right, clear of the point where a photograph usually carries its
+   subject and clear of the headline. */
+body[data-lb-layout="f3"] #app .lb-star {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.5rem;
+  z-index: 1;
+}
+
+body[data-lb-layout="f3"] #app li.feed-item.lb-has-image .lb-star {
+  color: #fff;
+}
+
+body[data-lb-layout="f3"] #app .feed-item > .feed-item-details {
+  order: 4;
+  max-width: var(--lb-measure);
+  padding: 0.7rem var(--lb-gut);
+  background-color: var(--color-background);
+}
+
+/* ------------------------------------------------------------------ */
+/* f4 - Broadsheet                                                     */
+/* ------------------------------------------------------------------ */
+
+/* The Leads idea let out to full width: one photograph opens each day, edge
+   to edge, and everything under it is a tight serif list with no pictures at
+   all - which is also why it asks the network for one image a day instead of
+   one an article. */
+
+body[data-lb-layout="f4"] {
+  --lb-serif:
+    "Playfair Display", "Iowan Old Style", "Palatino Linotype", "Noto Serif",
+    Georgia, serif;
+  --lb-sans:
+    "Archivo Narrow", ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+}
+
+body[data-lb-layout="f4"] #app .feed-title {
+  font-family: var(--lb-sans);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgb(from var(--color-text) r g b / 45%);
+}
+
+body[data-lb-layout="f4"] #app .feed-item-link a {
+  font-family: var(--lb-serif);
+  font-weight: 600;
+  line-height: 1.22;
+}
+
+body[data-lb-layout="f4"] #app .lb-source-badge {
+  display: none;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead {
+  display: block;
+  padding: 0 0 0.9rem;
+  border-bottom: 2px solid rgb(from var(--color-text) r g b / 45%);
+  margin-bottom: 0.5rem;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .lb-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  margin-bottom: 0.75rem;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .feed-item-domain,
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .feed-item-link,
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .lb-time {
+  display: block;
+  width: auto;
+  max-width: var(--lb-measure);
+  flex: none;
+  text-align: left;
+  padding-left: var(--lb-gut);
+  padding-right: var(--lb-gut);
+}
+
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .feed-item-link a {
+  font-size: 1.7rem;
+  letter-spacing: -0.015em;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .lb-time,
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .feed-item-domain {
+  font-family: var(--lb-sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+/* Everything else: a tight list, no picture, no chrome. The hairline runs
+   the full width; the words stop at a measure. */
+body[data-lb-layout="f4"] #app li.feed-item:not(.lb-lead) {
+  display: grid;
+  grid-template-columns: minmax(0, var(--lb-measure)) auto;
+  grid-template-areas:
+    "head time"
+    "meta time";
+  justify-content: start;
+  column-gap: 1rem;
+  row-gap: 0.1rem;
+  padding: 0.55rem var(--lb-gut);
+}
+
+body[data-lb-layout="f4"] #app li.feed-item:not(.lb-lead) .feed-item-link {
+  grid-area: head;
+  min-width: 0;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item:not(.lb-lead) .feed-item-link a {
+  font-size: 1.02rem;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item:not(.lb-lead) .feed-item-domain {
+  grid-area: meta;
+  font-family: var(--lb-sans);
+  font-size: 0.67rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lb-faint);
+}
+
+body[data-lb-layout="f4"] #app li.feed-item:not(.lb-lead) .lb-time {
+  grid-area: time;
+  width: auto;
+  flex: none;
+  text-align: right;
+  font-family: var(--lb-sans);
+  font-size: 0.67rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item:not(.lb-lead) .lb-thumb {
+  display: none;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item .lb-star {
+  position: absolute;
+  right: 0.35rem;
+  bottom: 0.35rem;
+}
+
+body[data-lb-layout="f4"] #app li.feed-item.lb-lead .lb-star {
+  bottom: 0.9rem;
+}
+
+/* ------------------------------------------------------------------ */
+/* f1 / f3 on a wide screen: cap the column                            */
+/* ------------------------------------------------------------------ */
+
+/* This is what full width costs on a laptop, and the only honest fix for it.
+   Left alone, the rule that gives a phone a 219px picture gives a 1440px
+   window a 540px one, with the headline stranded at the far left of a line
+   nobody reads across.
+
+   Tiling the rows into columns was the obvious answer and it does not work:
+   a grid row is as tall as its tallest cell, so every picture leaves a void
+   beside the two text rows next to it. Packing them would mean either
+   masonry, which is not implemented anywhere yet, or CSS columns, which
+   would run the newest story down the left and the oldest up the right of a
+   feed whose whole premise is time order.
+
+   So the column itself stops growing. The picture still runs edge to edge -
+   there is no gutter, no card, no rounded corner inside it - the edges just
+   stop moving apart past a width where a headline is still one glance.
+   f2 and f4 are excluded: their pictures are already a fraction of the
+   width, so they use everything a wide window gives them. */
+
+@media (min-width: 780px) {
+  body[data-lb-layout="f1"] #app,
+  body[data-lb-layout="f3"] #app {
+    max-width: 46rem;
+    margin: 0 auto;
+  }
+
+  /* The portrait crop is a phone shape - it exists so a headline set over the
+     picture has somewhere to sit without covering the subject. Across a
+     capped column it would be 589px of photograph before the next story, so
+     the crop widens with the column. */
+  body[data-lb-layout="f3"] #app li.feed-item.lb-has-image {
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* f4 leads with one photograph rather than a grid of them, so it caps the
+   height instead. 3:2 across 1440px is 617px of picture before the first
+   headline; a third of the window is enough. */
+@media (min-width: 780px) {
+  body[data-lb-layout="f4"] #app li.feed-item.lb-lead .lb-thumb {
+    aspect-ratio: auto;
+    height: min(38vh, 340px);
+  }
+
+  body[data-lb-layout="f4"] #app li.feed-item.lb-lead .feed-item-link a {
+    font-size: 2.1rem;
+  }
+}
