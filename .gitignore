@@ -1,1 +1,5 @@
 bin
+
+# Python bytecode from the harvest scripts
+__pycache__/
+*.pyc
