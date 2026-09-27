@@ -74,12 +74,14 @@ jobs:
       - name: Run liveboat
         run: ./bin/liveboat --template-path templates/custom --config-file config/liveboat-config.toml
 
-      # Roughly half these feeds publish no media in their RSS, so the picture
-      # is read off the article page instead. Cached in config/image-cache.json
-      # so each article is fetched once, not once an hour. Never fails the
-      # build: an article with no image simply keeps its typographic treatment.
-      - name: Harvest article images
-        run: python3 ./scripts/harvest_images.py || true
+      # Roughly half these feeds publish no media in their RSS, and the median
+      # item carries one sentence of text, so both the picture and the article
+      # body are read off the article page instead. Cached in
+      # config/article-cache.json so each article is fetched once, not once an
+      # hour. Never fails the build: an article this cannot reach simply keeps
+      # whatever its feed gave it.
+      - name: Harvest article pictures and text
+        run: python3 ./scripts/harvest_articles.py || true
         shell: bash
 
       # Publishers declare their logo in the page head, at CDN paths no client
@@ -107,7 +109,7 @@ jobs:
         id: commit
         if: github.ref_name == 'main'
         run: |
-          git add ./docs ./config/image-cache.json ./config/icon-cache.json
+          git add ./docs ./config
           let ts=$(date +"%s")
           git diff-index --quiet HEAD || git commit -m "Feed rebuild @ ${ts}" -a
         shell: bash

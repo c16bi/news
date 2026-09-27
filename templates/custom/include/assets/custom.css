@@ -1664,6 +1664,23 @@ body.gameboy-theme .lb-sheet-head .lb-source-badge {
   color: var(--lb-muted);
 }
 
+/* A harvested body is paragraphs of prose rather than a one-line summary, so
+   it gets the measure and the leading of something meant to be read. */
+.lb-sheet-full {
+  font-size: 1rem;
+  line-height: 1.68;
+  color: var(--color-text);
+}
+
+.lb-sheet-full p {
+  margin: 0 0 0.9rem;
+  max-width: 38rem;
+}
+
+.lb-sheet-full p:last-child {
+  margin-bottom: 0;
+}
+
 .lb-sheet-actions {
   display: flex;
   align-items: center;
