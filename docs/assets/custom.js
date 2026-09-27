@@ -146,11 +146,36 @@
       label: "Leads",
       hint: "Each day opens with its best picture",
     },
+    // The full-width family: no card fill, no rounded corners, no page
+    // gutter - the row owns the width of the glass.
+    {
+      id: "f1",
+      label: "Bleed",
+      hint: "Pictures span the screen, words underneath",
+    },
+    {
+      id: "f2",
+      label: "Edge",
+      hint: "Picture flush off the right, list stays dense",
+    },
+    {
+      id: "f3",
+      label: "Immersive",
+      hint: "Headline set over the picture",
+    },
+    {
+      id: "f4",
+      label: "Broadsheet",
+      hint: "One picture a day, then a tight list",
+    },
   ];
 
   // Layouts that show pictures. Everything else leaves remote images alone, so
   // nothing is fetched unless the reader has actually asked to see them.
-  var IMAGE_LAYOUTS = { discover: 1, e1: 1, e2: 1 };
+  var IMAGE_LAYOUTS = { discover: 1, e1: 1, e2: 1, f1: 1, f2: 1, f3: 1, f4: 1 };
+
+  // Layouts that open a section with one picture and run the rest as text.
+  var LEAD_LAYOUTS = { e2: 1, f4: 1 };
 
   function layoutWantsImages() {
     return !!IMAGE_LAYOUTS[currentLayout()];
@@ -526,12 +551,12 @@
      removes the element rather than leaving a broken frame - roughly half the
      feeds here carry no enclosure at all, and remote CDNs may refuse
      hotlinking. */
-  /* e2 shows one picture per section, so it loads one picture per section.
-     Every other row in that layout is a text line and never asks the network
-     for anything. */
+  /* e2 and f4 show one picture per section, so they load one picture per
+     section. Every other row in those layouts is a text line and never asks
+     the network for anything. */
   function wantsThumb(li) {
     if (!layoutWantsImages()) return false;
-    if (currentLayout() === "e2") return li.classList.contains("lb-lead");
+    if (LEAD_LAYOUTS[currentLayout()]) return li.classList.contains("lb-lead");
     return true;
   }
 
@@ -959,7 +984,7 @@
     var wrappers = document.querySelectorAll(
       mergedFeedOn() ? ".feed-item-group" : ".feed-wrapper",
     );
-    var leadWanted = currentLayout() === "e2";
+    var leadWanted = !!LEAD_LAYOUTS[currentLayout()];
 
     for (var i = 0; i < wrappers.length; i++) {
       var wrapper = wrappers[i];

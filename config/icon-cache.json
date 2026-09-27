@@ -1,10 +1,10 @@
 {
  "arstechnica.com": {
-  "ts": 1788217688,
+  "ts": 1789431336,
   "url": ""
  },
  "autosport.com": {
-  "ts": 1788217688,
+  "ts": 1789431336,
   "url": ""
  },
  "bbc.co.uk": {
@@ -12,7 +12,7 @@
   "url": "https://static.files.bbci.co.uk/core/website/assets/static/icons/touch/bbc/touch-icon-512.8ff92996d8.png"
  },
  "bloomberg.com": {
-  "ts": 1788217688,
+  "ts": 1789431336,
   "url": ""
  },
  "cyclingnews.com": {
@@ -20,11 +20,11 @@
   "url": "https://cdn.mos.cms.futurecdn.net/flexiimages/024zxm1hr71715762251.png"
  },
  "economist.com": {
-  "ts": 1788217688,
+  "ts": 1789431336,
   "url": ""
  },
  "ft.com": {
-  "ts": 1788217688,
+  "ts": 1789431336,
   "url": ""
  },
  "nytimes.com": {
@@ -52,7 +52,7 @@
   "url": "https://www.theverge.com/static-assets/icons/apple-touch-icon.png"
  },
  "velo.outsideonline.com": {
-  "ts": 1788217688,
+  "ts": 1789431336,
   "url": ""
  }
 }
