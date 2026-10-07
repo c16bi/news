@@ -60,7 +60,7 @@ To execute page rebuild job.
 __DONE__ Wait until Github Action finishes execution, then navigate to the repo Github Page `https:://<username>.github.io/<repo_name>` and verify everything is as expected.
 
 ## Changing page appearance
-Default template allows basic level of color customization, if you want to change color theme edit `./templates/default/config.toml` file and update color values to those that suit your needs
+Default template allows basic level of color customization, if you want to change color theme edit `./templates/default/config.toml` file (this repo builds from `./templates/custom`, so edit `./templates/custom/config.toml` here) and update color values to those that suit your needs
 
 ```
 [template_settings]
@@ -80,190 +80,148 @@ For more advanced template modifications see [Template development guide](https:
 ## The `templates/custom` template
 
 This repo builds from `./templates/custom` rather than `./templates/default`
-(see `--template-path` in `.github/workflows/workflow.yml`). It is a copy of the
-default template plus a few files that layer on top of the upstream bundle:
+(see `--template-path` in `.github/workflows/workflow.yml`). It is its own
+front end: Liveboat still fetches the feeds and writes them to `docs/feeds/`,
+but the page that reads them is written here, not the prebuilt app Liveboat
+ships.
 
 | File | What it does |
 | --- | --- |
-| `include/assets/custom.css` | Restyles the article list, feed headers, toolbar and mobile layout. Written entirely against the theme variables, so all nine built-in themes still work. |
-| `include/assets/custom.js` | Adds behaviour the prebuilt SPA does not have — timestamps, read tracking, saved articles, keyboard navigation, service worker registration. |
+| `index.hbs` | The page shell. Header, search box and theme are in the markup, so they paint before any script runs. |
+| `include/assets/app/*.js` | The reader, as plain ES modules with no build step: `main.js` boots it; `data.js` loads the feed, `feed.js` renders it, `chrome.js` is search and settings, plus `sheet.js`, `gestures.js`, `keys.js`, `logos.js`, `offline.js`, `store.js`, `format.js`. |
+| `include/assets/base.css` | Theme palettes, typography and the page column. |
+| `include/assets/custom.css` | Rows, the eight layouts, and everything interactive. |
 | `include/sw.js` | Service worker, so the page installs as an app and works offline. |
 | `include/assets/site.webmanifest` | Web app manifest (name, icons, standalone display, theme colour). |
 
-`index.hbs` is the stock one with a stylesheet `<link>`, a script `<script>`, a
-manifest `<link>` and a few extra `<meta>` tags added. Nothing in
-`index.js`/`index.css` is patched, so upstream template updates stay easy to
-take.
+The build also runs four scripts after Liveboat:
 
-### What the layer adds
+| Script | What it does |
+| --- | --- |
+| `scripts/harvest_articles.py` | Reads each article's page once for its picture and its text, since most feeds send neither. Cached in `config/article-cache.json`. |
+| `scripts/harvest_icons.py` | Reads each publisher's declared logo. Cached in `config/icon-cache.json`. |
+| `scripts/build_river.py` | Merges every source into one feed, split by day, for the page to load (below). |
+| `scripts/report_empty_feeds.py` | Warns on the run summary when a source stops producing. |
 
-- **Relative timestamps** on every article (`5h`, `2d`, `1w`), with the exact
-  publication date on hover. `custom.js` wraps `fetch` and reads the feed JSON
-  the app is already downloading, so this costs no extra requests.
-- **Read tracking.** Opening an article dims it. Press `u` (or the ◎ button) to
-  hide everything you have read.
-- **Save for later.** Click the ★ on any row, then press `v` (or the ★ button)
-  to show only saved articles. If a filter ends up hiding every article, the
-  page says so and offers a "Show all articles" button rather than just going
-  blank.
-- **New since your last visit** — those rows get an accent-coloured timestamp
-  and a dot, and the dock shows a count.
-- **Publisher logos** on each source chip, with a coloured monogram underneath
-  as the resting state — see below.
-- **Keyboard navigation**: `j`/`k` move, `o` or `Enter` opens, `s` saves, `m`
-  toggles read, `/` focuses search, `g`/`G` jump to top/bottom, `?` shows the
-  full list.
-- **Four article layouts**, switchable from the tab bar at the bottom of the
-  page or with `[` / `]`. The choice is remembered.
-- Reading progress bar, back-to-top button, focus rings, `prefers-reduced-motion`
-  support and a print stylesheet.
-- **In-app article previews.** Tapping a headline opens a sheet inside the app
-  with the source, image, date and the feed's summary, plus Open original,
-  Save and Share. Toggle it with `r` or the ☐ button in the dock.
-- **Installable and offline-capable** — see below.
+### The river
 
-Read state, saved articles, the chosen layout and filter preferences live in
-`localStorage` under the `liveboat-custom:` prefix — they are per-browser and
-never leave the device. Read state older than 60 days is pruned automatically.
+Liveboat's per-feed files are not what the page loads. Loaded as-is, a visit
+after any hourly rebuild downloaded all of them again - 1.1 MB compressed -
+because every file changed every build: newsboat's cache is rebuilt from
+scratch each run, so every item is renumbered; the topic feeds (Finance,
+News, Tech, Politics, Sport) repeat the source feeds' items; and every
+`_archive` file duplicated its live feed.
+
+`build_river.py` writes `docs/river/` instead: one file per UTC day, holding
+that day's stories with their picture and text already chosen, plus an index
+listing each day with a hash of its contents. The page requests each day as
+`river/<day>.json?v=<hash>`, so a day that has not changed is the same URL as
+last time and comes from the cache. Measured on real consecutive builds, a
+revisit downloads 54-91 KB instead of 281-284 KB. If this step ever fails,
+the workflow removes the river and the page falls back to Liveboat's own
+files.
+
+### The same story from several outlets
+
+When the BBC, the Guardian and the NYT all report something, it is one row
+with the others behind an "Also covered by" line. `scripts/stories.py` finds
+these groups at build time - TF-IDF over the headline and opening text, but
+only across different outlets, only within 48 hours, and only when the
+reports share a name (a person, company, place or product) unless the wording
+is near-identical. It is tuned to miss rather than merge wrongly: a missed
+group is a duplicate row, a wrong one hides a story. Grouping can be turned
+off in settings, and search always shows every match on its own row.
+
+### What the reader does
+
+- **One feed, newest first,** grouped by your own day.
+- **Read tracking.** Opening an article dims it; hide-read drops what you
+  have opened.
+- **Save for later**, with a saved-only view that keeps articles that have
+  since left the feed.
+- **Swipes**: right to save, left to mark read, each with Undo.
+- **In-app reading**: the article body where the build could get it, the
+  feed's summary otherwise, with Open original, Save and Share.
+- **Search** across headlines and source names, with `t:` to filter by tag
+  (`t:sport`, `t:f1,cycling`).
+- **One source at a time**, from settings.
+- **New since your last visit**, counted on the dock.
+- **Live refresh**: an open page notices a new build and adds it in place,
+  keeping your scroll position.
+- **Keyboard**: `j`/`k` move, `o` opens, `s` saves, `m` marks read, `/`
+  searches, `[`/`]` change layout, `?` lists the rest.
+
+Read state, saved articles and preferences live in `localStorage` under the
+`liveboat-custom:` prefix. They are per-browser and never leave the device.
+Read state older than 60 days is pruned.
 
 ### Layouts
 
 | Layout | What it is |
 | --- | --- |
-| **Compact** | Dense one-line rows with a timestamp column. The default. |
-| **Cards** | Each article a bordered card; two columns from 900px up. |
-| **Digest** | The newest article in each feed leads at display size, the rest follow as a list. |
-| **Reader** | Narrow serif column, no chips or badges, feed names as uppercase kickers. |
-| **Discover** | Image-led cards in the style of a phone news feed. Phone-first. |
+| **Compact** | Dense rows with a timestamp column. |
+| **Reader** | Narrow column, generous type, no chips or badges. |
+| **Mixed** | Newest first, a picture beside each story that has one. |
+| **Leads** | Each day opens with its best picture; the rest are a list. |
+| **Bleed** | Pictures span the screen, words underneath. |
+| **Edge** | Picture flush off the right edge, list stays dense. |
+| **Immersive** | Headline set over the picture. |
+| **Broadsheet** | One full-width picture a day, then a tight serif list. |
 
-Discover is the only layout that pulls in remote images, so nothing is fetched
-unless it is selected. Images come from each item's RSS `enclosureUrl` — the
-enclosure mime type in these feeds is unreliable (usually absent or
-`text/plain` even for JPEGs), so the file extension decides. A failed load
-removes the element rather than leaving a broken frame.
-
-**Coverage is uneven, and it follows the source rather than the topic.** Of the
-articles in a recent build, about 43% carried an image: NYT, the Guardian,
-CyclingNews and Autosport supply one nearly every time, while Bloomberg, the
-FT, the Economist and the BBC feeds supply none at all. The Finance section is
-therefore entirely text cards. Discover is built for that mix — a card with no
-image gets a larger headline instead of an empty frame.
-
-Every layout is pure CSS keyed off `data-lb-layout` on `<body>` — the DOM the
-SPA renders is identical in all four, so adding another is a block of CSS and
-one entry in the `LAYOUTS` array in `custom.js`. The attribute is used rather
-than a class because switching theme clears `body.className`.
+Only the picture layouts load remote images, and Leads and Broadsheet load one
+per day. Every layout is CSS keyed off `data-lb-layout` on `<body>`; adding one
+is a block of CSS and an entry in `LAYOUTS` in `app/store.js`.
 
 ### Theme
 
-The SPA reads its theme from `localStorage` at startup and falls back to
-`default`. `custom.js` runs before it (classic script, ahead of the deferred
-module) and seeds that key with **`seabreeze`** when the reader has never chosen
-one — so a first visit is Seabreeze, and any explicit pick from the dropdown,
-including "Default Theme", wins from then on.
-
-The light themes need different treatment from the dark ones: Seabreeze's accent
-(`#d7d7db`) sits within a few percent of its background (`#e1e2e7`), so
-accent-tinted surfaces and hairlines vanish. `custom.css` derives those from the
-text colour instead for `seabreeze`, `sollight`, `plain` and `gameboy`.
+Nine themes, chosen in settings; a first visit gets **Seabreeze**. Theme and
+layout are applied by a small inline script before the first paint, so a dark
+theme never flashes light while the page loads. The light themes derive their
+surfaces and hairlines from the text colour rather than the accent, which in
+Seabreeze sits within a few percent of the background.
 
 ### Publisher logos
 
-Neither newsboat nor Liveboat keeps the RSS channel `<image>`, so a masthead has
-to come from the web. `custom.js` asks the publisher's own site rather than
-going through a favicon service, so no third party learns what you read:
+`harvest_icons.py` reads each publisher's declared icon from its own page
+head, and that answer wins. Publishers that refuse the build often do not
+refuse the reader, so for those the browser tries `/apple-touch-icon.png`,
+`/apple-touch-icon-precomposed.png` and `/favicon.ico` itself, keeping the
+first that is at least 32px and remembering the result per domain for 30 days.
+A coloured monogram sits underneath and shows whenever there is no logo.
 
-1. `https://<domain>/apple-touch-icon.png` (normally 180px)
-2. `…/apple-touch-icon-precomposed.png`
-3. `…/favicon.ico`
+### Progressive web app and offline
 
-The first image that decodes at 32px or wider wins; anything smaller looks worse
-than the monogram, so it is rejected. The outcome per domain — including "none
-available" — is cached in `localStorage` for 30 days, so the failed probes are
-not repeated on every visit. There are only about twenty domains in the whole
-feed list.
+The page is installable ("Add to Home Screen" on iOS, "Install app" on
+Chrome/Edge/Android) and works offline.
 
-The monogram stays in the DOM underneath and shows through whenever a publisher
-has no usable icon, refuses the request, or you are offline. A load failure
-while offline is deliberately *not* remembered, since it says nothing about the
-publisher.
-
-### Reading without leaving the app
-
-Following a link from an installed PWA hands you to the system browser, and you
-lose your place in the feed. The article sheet keeps you inside the app: it
-shows what the feed already gave us, with the original one tap away.
-
-That summary is the whole limit of it — these are RSS feeds, not full article
-text, so the sheet is a preview rather than a reader. Bloomberg supplies a solid
-paragraph, the NYT an abstract, and a few feeds nothing at all. Turn it off with
-`r` and headlines go straight to the browser again.
-
-On phones the floating dock and layout tabs slide away while you scroll down and
-return on any upward scroll, so they are not sitting on top of the feed while
-reading.
-
-### Progressive web app
-
-The page is installable: "Add to Home Screen" on iOS, "Install app" on
-Chrome/Edge/Android. It then opens without browser chrome, with its own icon.
-
-`include/sw.js` is emitted to `docs/sw.js` — the site root rather than
-`docs/assets/`, because a service worker can only control pages at or below its
-own path and GitHub Pages will not serve the `Service-Worker-Allowed` header
-that would relax that. It is registered from `custom.js` using
-`window.sitePath`, so it follows `site_path` automatically.
-
-Caching is chosen around the hourly rebuild, and around the fact that Liveboat
-cache-busts with query strings rather than hashed filenames:
+`include/sw.js` is emitted to `docs/sw.js` - the site root, because a service
+worker can only control pages at or below its own path and GitHub Pages will
+not serve the `Service-Worker-Allowed` header that would relax that.
 
 | Request | Strategy |
 | --- | --- |
 | Page navigation | Network first, cached shell as the offline fallback |
-| `assets/*` | Stale-while-revalidate — instant paint, refresh behind it |
-| `feeds/*`, `channels/*` | Network first, cached copy as the offline fallback |
+| `assets/*` | Stale-while-revalidate, matched exactly on `?bt=<build time>` |
+| `river/*?v=<hash>` | Cache first - the hash is the content, so a hit is current |
+| `river/index.json` | Network first, cached copy as the offline fallback |
+| Pictures, any origin | Cache first, capped at 160, quota-safe |
 
-So online you always read current news; offline you read whatever you last
-loaded, with an "Offline" banner at the top of the page.
+Every module is listed in an import map with the build time in its URL, so
+one build's page can never run with another build's modules out of the cache.
+`index.hbs` carries a small inline recovery snippet that asks the worker to
+update and reloads when a new worker replaces an old one - code served from a
+stale cache cannot rescue itself.
 
-Asset matching is deliberately **exact**, not `ignoreSearch`. Because Liveboat
-cache-busts with `?bt=<build time>`, an exact match means "same build", so a
-hit is known-current and a new build correctly misses and goes to the network.
-Matching loosely lets the first entry the cache ever saw answer for every later
-build, which pins the reader to it permanently — that is exactly what v1 of the
-worker did. `ignoreSearch` survives only as the offline fallback, where a stale
-asset beats none, and each write drops the other variants of that path so the
-cache holds one copy per asset.
+### Tests
 
-`index.hbs` also carries a small inline recovery snippet. It has to be inline:
-the page is served network-first, so that snippet is always the newest code
-even while the worker is handing out a stale `custom.js`. It asks the
-registration to update and reloads the moment a new worker claims the page —
-a cached bundle cannot rescue itself. The feed cache is
-capped at 60 entries and old cache versions are deleted on activation. When a
-new worker takes over an existing one, a toast offers a reload rather than
-pulling the page out from under you.
+`tests/` holds the Python tests for the build scripts and a Playwright suite
+for the page, both run on every pull request. See `tests/README.md`.
 
-`site.webmanifest` uses relative URLs (`start_url` and `scope` are `../` from
-`assets/`), so it resolves correctly regardless of `site_path`. The manifest is
-copied verbatim rather than templated — only `index.hbs` goes through
-Handlebars — so its `name` is the one thing that has to be kept in step with
-`title` in `./config/liveboat-config.toml` by hand.
+### Upstream template updates
 
-### Taking an upstream template update
-
-`make update` overwrites `./templates/default`. To carry that into our template:
-
-``` sh
-make update
-make sync-template
-```
-
-`make sync-template` recreates `./templates/custom` from `./templates/default`
-and re-injects the override `<link>`/`<script>` and the extra `<meta>` tags.
-`custom.css`, `custom.js`, `sw.js`, `site.webmanifest`, the 512px icon and
-`config.toml` are preserved as-is. The script is idempotent, so running it twice
-is safe.
+`make update` updates `./templates/default` and the Liveboat binary; it never
+touches `./templates/custom`, which no longer derives from the default
+template. Upstream changes to Liveboat's own front end do not apply here.
 
 ## Liveboat URL file breakdown
 This section goes over basic Newsboat URL file syntax which Liveboat uses for parsing RSS links. For more detailed overview see [Newsboat documentation page](https://newsboat.org/releases/2.10.2/docs/newsboat.html)

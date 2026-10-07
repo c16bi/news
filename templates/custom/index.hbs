@@ -1,10 +1,9 @@
 <!doctype html>
-<html lang="">
+<html lang="en">
   <head>
     <meta charset="utf-8">
 
     <title>{{ options.title }}</title>
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="description" content="{{ options.title }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -15,7 +14,6 @@
     <link rel="icon" type="image/png" sizes="16x16" href="./assets/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="./assets/android-chrome-192x192.png">
-
 
     <!-- Add to homescreen for Safari on iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -29,11 +27,11 @@
     <meta property="og:type" content="website">
     <meta property="og:description" content="{{ options.title }} — a personal news feed.">
 
-    <link rel="stylesheet" href="./assets/index.css?tv={{template_version}}">
+    <link rel="stylesheet" href="./assets/base.css?bt={{build_time}}">
     <link rel="stylesheet" href="./assets/custom.css?bt={{build_time}}">
 
     <!--
-      Playfair carries the two newsprint layouts and nothing else, so it is
+      Playfair carries the editorial layouts and nothing else, so it is
       requested with display=swap and a real fallback stack behind it: the page
       renders immediately in Iowan / Palatino / Noto Serif, and stays readable
       offline or if fonts.gstatic.com is blocked, where it simply never swaps.
@@ -61,66 +59,111 @@
         }
     </style>
 
+    <!--
+      Every module is listed with the build time in its URL, so one build's
+      page can never run with another build's modules out of the cache.
+    -->
+    <script type="importmap">
+      {
+        "imports": {
+          "./assets/app/main.js": "./assets/app/main.js?bt={{build_time}}",
+          "./assets/app/store.js": "./assets/app/store.js?bt={{build_time}}",
+          "./assets/app/format.js": "./assets/app/format.js?bt={{build_time}}",
+          "./assets/app/data.js": "./assets/app/data.js?bt={{build_time}}",
+          "./assets/app/logos.js": "./assets/app/logos.js?bt={{build_time}}",
+          "./assets/app/feed.js": "./assets/app/feed.js?bt={{build_time}}",
+          "./assets/app/gestures.js": "./assets/app/gestures.js?bt={{build_time}}",
+          "./assets/app/sheet.js": "./assets/app/sheet.js?bt={{build_time}}",
+          "./assets/app/chrome.js": "./assets/app/chrome.js?bt={{build_time}}",
+          "./assets/app/keys.js": "./assets/app/keys.js?bt={{build_time}}",
+          "./assets/app/offline.js": "./assets/app/offline.js?bt={{build_time}}"
+        }
+      }
+    </script>
   </head>
   <body>
-      <script>
+    <!--
+      Theme and layout are applied before the first paint, so a dark-theme
+      reader never sees a flash of the light one while the modules load.
+    -->
+    <script>
+      (function () {
+        var theme = "seabreeze", layout = "compact";
+        try {
+          theme = localStorage.getItem("liveboat-default-theme") || theme;
+          var prefs = JSON.parse(localStorage.getItem("liveboat-custom:prefs") || "{}");
+          layout = { cards: "f2", digest: "e2", discover: "f1" }[prefs.layout] || prefs.layout || layout;
+        } catch (e) {}
+        if (theme !== "default") document.body.classList.add(theme + "-theme");
+        document.body.setAttribute("data-lb-layout", layout);
+        document.body.classList.add("lb-merged");
+      })();
+    </script>
+    <script>
       window.buildTime = {{ build_time }};
       window.templateVer = "{{ template_version }}";
       window.pageTitle = '{{ options.title }}';
       window.sitePath = '{{ options.site_path }}';
-      window.templateVersion = "{{ template_version }}";
+      // The per-feed list Liveboat renders. The page reads docs/river/ when it
+      // exists and only falls back to these if that build step failed.
       window.feeds = [
     {{#each feeds}}
         {{#unless this.isEmpty}}
             {{#unless this.isHidden}}
             {
                 id: "{{this.id}}",
-                url: "{{this.url}}",
                 title: "{{this.title}}",
                 displayTitle: "{{this.displayTitle}}",
                 feedLink: "{{this.feedLink}}",
-                itemCount: "{{this.itemCount}}",
                 isQuery: {{this.isQuery}},
-                tags: [{{#each this.tags}}
-                    "{{this}}",
-                    {{/each}}]
+                tags: [{{#each this.tags}}"{{this}}",{{/each}}]
             },
             {{/unless}}
         {{/unless}}
     {{/each}}
-          ];
-    {{#if template_settings.autoreload}}
-      window.autoreload = {{template_settings.autoreload}}
-    {{/if}}
-    {{#if template_settings.repo-url}}
-      window.repoUrl = "{{template_settings.repo-url}}"
-    {{/if}}
-    {{#if template_settings.subheader-text}}
-      window.subHeaderText = "{{template_settings.subheader-text}}"
-    {{/if}}
-    {{#if template_settings.header-svg}}
-      window.headerSvg = "{{template_settings.header-svg}}"
-    {{/if}}
-    {{#if template_settings.youtube-embed-params}}
-      window.youtubeEmbedParams = "{{{template_settings.youtube-embed-params}}}"
-    {{/if}}
-      </script>
-      <div id="app"></div>
+      ];
+    </script>
+
+    <div id="app">
+      <main>
+        <div class="header-container">
+          <div class="header-title">
+            <h2>
+              <svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true"><path d="M0 0 C2.69357206 0.97665153 3.78480434 1.56427891 5.07446289 4.17553711 C8.09331787 14.70316548 10.38035296 25.3804053 12.6857605 36.08322144 C33.29174576 131.45397503 57.94981039 229.57938486 101.75 320.68359375 C102.1737793 321.5564502 102.59755859 322.42930664 103.03417969 323.32861328 C103.81448913 324.92276354 104.60589022 326.51155939 105.41113281 328.09326172 C107.40651033 332.14105425 108.91903791 335.39824587 108 340 C104.5753259 343.75629989 101.51379768 344.6093716 96.5625 345.1875 C94.92474609 345.39439453 94.92474609 345.39439453 93.25390625 345.60546875 C91.83653657 345.74328582 90.41845465 345.87383829 89 346 C87.59609009 346.13136353 87.59609009 346.13136353 86.16381836 346.26538086 C76.20536286 347.09408167 66.27430874 347.18616354 56.28637695 347.18530273 C53.43881481 347.18749899 50.5916352 347.20575504 47.74414062 347.22460938 C21.95731679 347.3067071 21.95731679 347.3067071 15.875 342.5625 C9.81632031 332.96970848 9.35093217 318.98975425 7.6875 308 C7.53792847 307.01747253 7.38835693 306.03494507 7.23425293 305.02264404 C0.88437836 262.8890526 -2.81770683 220.32100291 -4.86611938 177.77008057 C-4.95527079 175.92547758 -5.04769114 174.08102964 -5.1434021 172.23675537 C-6.19214144 151.72418502 -6.18749342 131.20769956 -6.18530273 110.67382812 C-6.18522187 106.74604651 -6.19211727 102.81838252 -6.20581055 98.890625 C-6.27510358 78.66055082 -6.17962776 58.47194599 -5.11328125 38.265625 C-5.07433432 37.51067497 -5.03538738 36.75572495 -4.99526024 35.97789764 C-4.55391119 27.6682246 -3.90841998 19.38620682 -3.05541992 11.10839844 C-2.98118207 10.34156864 -2.90694422 9.57473885 -2.83045673 8.78467178 C-2.43220772 5.14972023 -2.06435752 3.09653627 0 0 Z " transform="translate(239,29)"></path><path d="M0 0 C10.78753481 0.44002287 21.20913976 2.33009044 31.80783081 4.26626587 C51.47457303 7.84158321 71.09847666 11.03577683 91 13 C92.06788757 13.10604553 92.06788757 13.10604553 93.15734863 13.2142334 C133.99908643 17.22025724 175.08459981 17.48013305 216.08447266 16.62768555 C219.23203945 16.56286985 222.37967437 16.5029576 225.52734375 16.44335938 C235.45146905 16.24594705 245.3595433 15.96565977 255.2734375 15.46875 C265.64642857 14.95425895 275.99134437 14.88332263 286.375 14.9375 C288.10546741 14.94254083 289.83593629 14.94709903 291.56640625 14.95117188 C295.71097558 14.96193692 299.85547018 14.9790485 304 15 C304.33 16.32 304.66 17.64 305 19 C297.57454408 26.95433454 288.87698969 30.92668649 279 35 C278.2049707 35.33 277.40994141 35.66 276.59082031 36 C239.01676517 51.28638557 197.67407199 57.22100709 157.3125 57.25 C156.46027863 57.25067474 155.60805725 57.25134949 154.73001099 57.25204468 C99.17636573 57.18266179 44.06570714 40.40852216 0.22412109 5.58959961 C-0.17983887 5.06503174 -0.58379883 4.54046387 -1 4 C-0.6875 1.8125 -0.6875 1.8125 0 0 Z " transform="translate(98,395)"></path><path d="M0 0 C1.32 0.33 2.64 0.66 4 1 C4.73844028 9.56015314 5.14612308 18.10999706 5.4296875 26.6953125 C5.46494537 27.76145782 5.50020325 28.82760315 5.53652954 29.92605591 C5.61039194 32.167235 5.684213 34.40841545 5.75799561 36.64959717 C7.35869039 84.19532569 11.98843359 131.17719823 21.58251953 177.83276367 C22.09183017 180.47671138 22.16914369 182.99646503 22.1875 185.6875 C22.20167969 186.64011719 22.21585938 187.59273437 22.23046875 188.57421875 C22 191 22 191 20 193 C16.95905767 193.23604089 14.04281607 193.33082186 11 193.3125 C10.08532959 193.30976074 9.17065918 193.30702148 8.22827148 193.30419922 C0.45544006 193.19110676 -7.2173051 192.50719901 -14.9375 191.625 C-16.04416016 191.49907471 -17.15082031 191.37314941 -18.29101562 191.2434082 C-31.47090132 189.61619924 -31.47090132 189.61619924 -34.8515625 186.04296875 C-36.57844427 181.46731944 -36.44169248 177.16533606 -36.375 172.3125 C-36.36484863 171.22090576 -36.35469727 170.12931152 -36.34423828 169.00463867 C-35.5048579 122.3019047 -31.63126748 36.77377415 0 0 Z " transform="translate(205,197)"></path></svg>
+              <a href="{{ options.site_path }}">{{ options.title }}</a>
+            </h2>
+            <button id="lb-build-stamp" type="button" hidden><span class="lb-stamp-text"></span></button>
+          </div>
+        </div>
+        <div class="filter-container">
+          <span id="filter-search">
+            <span id="filter-search-icon" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"></path></svg></span>
+            <input type="search" placeholder="Search" aria-label="Search headlines" autocomplete="off" enterkeyhint="search">
+            <button id="filter-search-clear" type="button" aria-label="Clear search" hidden>&times;</button>
+            <button id="filter-search-help" type="button" aria-expanded="false" aria-label="How search works"><span>?</span></button>
+            <span id="filter-search-tip" role="note">Every word must appear in the headline or source. Filter by tag with <code>t:</code> &mdash; <code>t:sport</code>, <code>t:f1,cycling</code>, <code>t:bbc brexit</code>.</span>
+          </span>
+        </div>
+        <span class="loading-spinner" role="status" aria-label="Loading"></span>
+      </main>
+    </div>
 
     <!--
-      Service worker recovery. This lives inline in the HTML on purpose: the
-      page is served network-first, so this snippet is always the newest code
-      even when the worker is handing out a stale cached custom.js. Asking the
-      registration to update, and reloading the moment a new worker claims the
-      page, is what rescues a browser pinned to an old build - the cached
-      bundle cannot rescue itself.
+      Service worker recovery. Inline on purpose: the page is served network-
+      first, so this snippet is always the newest code even when the worker is
+      handing out a stale cached module. Asking the registration to update,
+      and reloading the moment a new worker claims the page, is what rescues a
+      browser pinned to an old build - cached code cannot rescue itself.
     -->
     <script>
       (function () {
         if (!("serviceWorker" in navigator)) return;
         var reloaded = false;
+        // A first visit has no old worker whose cached code could be stale, so
+        // a worker taking control for the first time is no reason to reload.
+        var replacing = !!navigator.serviceWorker.controller;
         navigator.serviceWorker.addEventListener("controllerchange", function () {
-          if (reloaded) return;
+          if (reloaded || !replacing) return;
           reloaded = true;
           location.reload();
         });
@@ -130,13 +173,8 @@
       })();
     </script>
 
-    <!--
-      custom.js is a classic script so it runs before the deferred module
-      below: it needs to wrap `fetch` before the SPA issues its first request.
-    -->
-    <script src="./assets/custom.js?bt={{build_time}}"></script>
-    <script type="module" src="./assets/index.js?tv={{template_version}}"></script>
-
+    <!-- Imported rather than src'd: an import map rewrites imports, not the
+         src of a script tag, and main.js needs its build-stamped URL too. -->
+    <script type="module">import "./assets/app/main.js";</script>
   </body>
 </html>
-

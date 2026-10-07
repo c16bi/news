@@ -92,6 +92,15 @@ jobs:
         run: python3 ./scripts/harvest_icons.py || true
         shell: bash
 
+      # The feed the page actually loads: every source merged, split by day,
+      # each day file named by its content hash so a visit after a rebuild only
+      # downloads what changed. Runs after the harvest steps, whose pictures and
+      # text it packages. If it fails, any stale river is removed so the page
+      # falls back to Liveboat's own feed files rather than serving old news.
+      - name: Build river
+        run: python3 ./scripts/build_river.py || { rm -rf ./docs/river; true; }
+        shell: bash
+
       # A source whose URL has rotted produces no page and says nothing about
       # it, so the site just shows one fewer feed. This turns that into a
       # warning on the run summary. Advisory only - never fails the build.
