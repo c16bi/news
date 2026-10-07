@@ -1,0 +1,59 @@
+name: Tests
+
+# Every pull request, and every push to a branch other than main. The hourly
+# feed rebuild pushes to main and is not a code change, so it is left alone.
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Story grouping, the river build and article extraction.
+      - name: Build scripts
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tests/browser/package-lock.json
+
+      - name: Install browser tests
+        working-directory: tests/browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # The page itself, in a real browser, over a site rendered from
+      # tests/fixtures - layouts, reading, grouping, search, safety, the
+      # changed-days-only download and offline.
+      - name: Browser
+        working-directory: tests/browser
+        run: npx playwright test
+
+      - name: Keep the report when something fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            tests/browser/test-results/
+            tests/browser/playwright-report/
+          retention-days: 7
