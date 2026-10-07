@@ -273,7 +273,7 @@
   var deadImages = Object.create(null);
 
   function imageFor(item) {
-    // lbImage is added at build time by scripts/harvest_images.py, which reads
+    // lbImage is added at build time by scripts/harvest_articles.py, which reads
     // the article's og:image for the roughly half of these feeds that publish
     // no media in their RSS. Absent for anything it could not reach, so the
     // enclosure stays the fallback and no image at all stays valid.
@@ -297,6 +297,11 @@
         feed: feedName,
         img: imageFor(it),
         content: it.content || "",
+        // Added at build time by scripts/harvest_articles.py for the articles
+        // whose feed sends a headline and little else. Absent whenever the
+        // feed's own copy was already the better one, so the fallback below
+        // is the normal path, not the failure path.
+        text: it.lbText || "",
       };
       metaDirty = true;
     }
@@ -2066,12 +2071,29 @@
 
     var body = document.createElement("div");
     body.className = "lb-sheet-body";
-    // The feed's own summary, as text - never inserted as markup.
+
+    /* The harvested article body where there is one, the feed's own summary
+       otherwise. Either way it is set as text, never as markup: this is
+       arbitrary HTML from someone else's page. */
+    var harvested = String(info.text || "").trim();
     var summary = String(info.content || "")
       .replace(/<[^>]*>/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    body.textContent = summary || "No preview available for this article.";
+
+    if (harvested) {
+      var paragraphs = harvested.split(/\n{2,}/);
+      for (var p = 0; p < paragraphs.length; p++) {
+        var line = paragraphs[p].trim();
+        if (!line) continue;
+        var para = document.createElement("p");
+        para.textContent = line;
+        body.appendChild(para);
+      }
+      body.classList.add("lb-sheet-full");
+    } else {
+      body.textContent = summary || "No preview available for this article.";
+    }
 
     var actions = document.createElement("div");
     actions.className = "lb-sheet-actions";
@@ -2195,6 +2217,40 @@
     update();
   }
 
+  /* The worker cannot know the feed filenames - they are content hashes the
+     page gets from window.feeds - so the list is handed over once the page is
+     up. The SPA fetches feeds lazily, so without this the only thing that
+     survives going offline is whatever the reader happened to scroll past.
+
+     Current feeds only, not the _archive halves: together they are 4 MB a
+     build, and the archives are history rather than news. */
+  function precacheFeeds() {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    var feeds = window.feeds;
+    if (!feeds || !feeds.length) return;
+
+    var base = window.sitePath || "/";
+    if (base.charAt(base.length - 1) !== "/") base += "/";
+
+    var urls = [];
+    for (var i = 0; i < feeds.length; i++) {
+      if (feeds[i] && feeds[i].id)
+        urls.push(
+          base + "feeds/" + feeds[i].id + ".json?bt=" + window.buildTime,
+        );
+    }
+    if (!urls.length) return;
+
+    try {
+      navigator.serviceWorker.controller.postMessage({
+        type: "lb-cache-feeds",
+        urls: urls,
+      });
+    } catch (e) {
+      /* offline support is optional - never block the page on it */
+    }
+  }
+
   function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     if (location.protocol !== "https:" && location.hostname !== "localhost")
@@ -2217,6 +2273,16 @@
     navigator.serviceWorker
       .register(base + "sw.js", { scope: base })
       .then(function (registration) {
+        /* Once a worker is controlling the page, hand it the feed list. On a
+           first-ever visit nothing controls the page yet, so wait for it. */
+        if (navigator.serviceWorker.controller) {
+          precacheFeeds();
+        } else {
+          navigator.serviceWorker.ready.then(function () {
+            setTimeout(precacheFeeds, 2000);
+          });
+        }
+
         // Only prompt when an update replaces an existing worker; the very
         // first install has nothing to reload for.
         registration.addEventListener("updatefound", function () {
