@@ -9,10 +9,12 @@
  * and its asset URLs are cache-busted with query strings rather than hashed
  * filenames:
  *
- *   navigation  -> network first, cached shell as the offline fallback
- *   assets/*    -> stale-while-revalidate (instant paint, refresh behind it)
- *   feeds, etc. -> network first, cached copy as the offline fallback
- *   pictures    -> cache first, on any origin, capped and quota-safe
+ *   navigation   -> network first, cached shell as the offline fallback
+ *   assets/*     -> stale-while-revalidate (instant paint, refresh behind it)
+ *   river/*?v=   -> cache first; the hash in the URL is the content, so a hit
+ *                   is current by definition and a changed day is a new URL
+ *   river index  -> network first, cached copy as the offline fallback
+ *   pictures     -> cache first, on any origin, capped and quota-safe
  *
  * That means online you always read current news, and offline you read
  * whatever you last loaded.
@@ -37,14 +39,15 @@
 /* Bumping this discards every cache from the previous version on activate.
    v1 shipped with a loose asset match that pinned readers to the first build
    its cache ever saw, so those caches must be thrown away, not migrated. */
-var VERSION = "v3";
+/* v4: the front end is no longer the prebuilt app, so its assets are new
+   files, and the feed now arrives as the river rather than per-feed files. */
+var VERSION = "v4";
 var SHELL_CACHE = VERSION + "-shell";
 var DATA_CACHE = VERSION + "-data";
 var IMAGE_CACHE = VERSION + "-img";
 
-/* The feed set is 31 feeds plus 29 archives, so the old cap of 60 sat exactly
-   on the boundary: one more source and every build would evict a feed the
-   reader had already loaded. This leaves room for the archives to grow. */
+/* About forty day files, the index, the story groups and the logo map; older
+   versions of each are replaced as they are stored, so this is headroom. */
 var MAX_DATA_ENTRIES = 200;
 var MAX_IMAGE_ENTRIES = 160;
 
@@ -52,10 +55,19 @@ var BASE = new URL(self.registration.scope).pathname;
 
 var SHELL_ASSETS = [
   BASE,
-  BASE + "assets/index.css",
-  BASE + "assets/index.js",
+  BASE + "assets/base.css",
   BASE + "assets/custom.css",
-  BASE + "assets/custom.js",
+  BASE + "assets/app/main.js",
+  BASE + "assets/app/store.js",
+  BASE + "assets/app/format.js",
+  BASE + "assets/app/data.js",
+  BASE + "assets/app/logos.js",
+  BASE + "assets/app/feed.js",
+  BASE + "assets/app/gestures.js",
+  BASE + "assets/app/sheet.js",
+  BASE + "assets/app/chrome.js",
+  BASE + "assets/app/keys.js",
+  BASE + "assets/app/offline.js",
   BASE + "assets/site.webmanifest",
   BASE + "assets/favicon.ico",
   BASE + "assets/favicon-32x32.png",
@@ -140,10 +152,17 @@ function safePut(cache, request, response) {
  *
  * The request is re-issued in no-cors mode when it is cross-origin, which is
  * every publisher CDN. That yields an opaque response - status 0, unreadable
- * headers, `ok` false - which is fine to cache and hand to an <img>, and
- * impossible to validate. A 404 page and a photograph are indistinguishable,
- * so the only sanity check available is size: anything under a favicon's
- * worth of bytes is not a news picture and is not worth an entry. */
+ * headers, unreadable body - which is fine to cache and hand to an <img>, and
+ * impossible to inspect.
+ *
+ * v3 got that wrong. It checked every response's size before caching it, to
+ * keep error pages out - but an opaque body reads as zero bytes by design, so
+ * every publisher photograph failed the check and none was ever stored. Its
+ * test passed only because the stand-in pictures it used were same-origin,
+ * and so readable. Opaque responses are now cached as they are; the size
+ * check applies only where there is a body to measure. A failed network
+ * request rejects rather than resolving, so what reaches the cache is at worst
+ * a publisher's error page, which the entry cap eventually evicts. */
 var MIN_IMAGE_BYTES = 600;
 
 function cacheFirstImage(request) {
@@ -163,22 +182,27 @@ function cacheFirstImage(request) {
       return fetch(outbound)
         .then(function (response) {
           if (!response) return response;
-          // A same-origin response we can judge; an opaque one we cannot.
-          if (sameOrigin && !response.ok) return response;
+          var trim = function () {
+            return trimCache(IMAGE_CACHE, MAX_IMAGE_ENTRIES);
+          };
 
-          var copy = response.clone();
-          copy
+          if (response.type === "opaque") {
+            safePut(cache, request, response.clone())
+              .then(trim)
+              .catch(function () {});
+            return response;
+          }
+
+          // A readable response we can judge: a real picture, not an error.
+          if (!response.ok) return response;
+          response
+            .clone()
             .blob()
             .then(function (blob) {
               if (blob.size < MIN_IMAGE_BYTES) return;
-              return safePut(cache, request, new Response(blob)).then(
-                function () {
-                  return trimCache(IMAGE_CACHE, MAX_IMAGE_ENTRIES);
-                },
-              );
+              return safePut(cache, request, new Response(blob)).then(trim);
             })
             .catch(function () {});
-
           return response;
         })
         .catch(function () {
@@ -265,6 +289,37 @@ function staleWhileRevalidate(request, cacheName) {
   });
 }
 
+/* Content-addressed data: river day files, the story groups and the logo map
+   are requested with ?v=<hash of the file>. An exact hit is therefore current
+   - there is nothing to revalidate - and a day that changed arrives under a
+   new URL. Storing it drops the superseded version of the same path. */
+function cacheFirstVersioned(request) {
+  return caches.open(DATA_CACHE).then(function (cache) {
+    return cache.match(request).then(function (hit) {
+      if (hit) return hit;
+      return fetch(request)
+        .then(function (response) {
+          if (response && response.ok) {
+            putAssetFresh(cache, request, response.clone())
+              .then(function () {
+                return trimCache(DATA_CACHE, MAX_DATA_ENTRIES);
+              })
+              .catch(function () {});
+          }
+          return response;
+        })
+        .catch(function () {
+          // Offline and never seen this version: an older one beats nothing.
+          return cache
+            .match(request, { ignoreSearch: true })
+            .then(function (any) {
+              return any || Response.error();
+            });
+        });
+    });
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   var request = event.request;
   if (request.method !== "GET") return;
@@ -299,50 +354,14 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
+  if (url.searchParams.has("v")) {
+    event.respondWith(cacheFirstVersioned(request));
+    return;
+  }
+
   event.respondWith(networkFirst(request, DATA_CACHE));
 });
 
-/* The worker cannot discover the feed files on its own: their names are
-   content hashes that only the page knows, from window.feeds. So the page
-   hands the list over once it has loaded, and anything not already cached is
-   fetched in the background.
-
-   Without this, what survives going offline is only what the reader happened
-   to scroll past - the SPA fetches feeds lazily, so a quick look at the top
-   of the river leaves most of it uncached. */
-function precacheFeeds(urls) {
-  if (!urls || !urls.length) return Promise.resolve();
-  return caches.open(DATA_CACHE).then(function (cache) {
-    return urls
-      .reduce(function (chain, url) {
-        return chain.then(function () {
-          return cache.match(url).then(function (hit) {
-            if (hit) return;
-            return fetch(url, { cache: "no-cache" })
-              .then(function (response) {
-                if (response && response.ok)
-                  return safePut(cache, url, response.clone());
-              })
-              .catch(function () {});
-          });
-        });
-        // Sequentially, not in parallel: this runs behind a reader who is
-        // already looking at the page, and must not compete with the
-        // pictures they are actually scrolling towards.
-      }, Promise.resolve())
-      .then(function () {
-        return trimCache(DATA_CACHE, MAX_DATA_ENTRIES);
-      });
-  });
-}
-
 self.addEventListener("message", function (event) {
-  var data = event.data;
-  if (data === "lb-skip-waiting") {
-    self.skipWaiting();
-    return;
-  }
-  if (data && data.type === "lb-cache-feeds") {
-    event.waitUntil(precacheFeeds(data.urls));
-  }
+  if (event.data === "lb-skip-waiting") self.skipWaiting();
 });
