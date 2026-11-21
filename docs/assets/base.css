@@ -1,0 +1,266 @@
+/*
+ * base.css - foundations: theme palettes, typography, the page column.
+ *
+ * Ported from the stylesheet that shipped with Liveboat's prebuilt app, with
+ * its component-scoping attributes removed and every rule for a component
+ * this front end does not have (podcast player, video embed, feed navigator,
+ * range buttons, inline expand) dropped. Layouts live in custom.css.
+ *
+ * One upstream bug fixed on the way: Solarized Dark's highlight was the
+ * five-digit "#586e7", which browsers reject, so the theme silently fell back
+ * to the default highlight colour.
+ */
+
+:root {
+  --color-text: #c7cfcc;
+  --color-highlight: #73bed3;
+  --color-accent: #3c5e8b;
+  --color-background: #181818;
+  --color-custom: #f3a833;
+}
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: 400;
+}
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background);
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  line-height: 1.6;
+  font-family:
+    Lucida Grande,
+    Lucida Sans Unicode,
+    Lucida Sans,
+    Verdana,
+    Tahoma,
+    sans-serif;
+  font-size: 14px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body.mono-theme {
+  --color-text: #aaaaaa !important;
+  --color-highlight: #cccccc !important;
+  --color-accent: #444444 !important;
+  --color-background: #080808 !important;
+  --color-custom: #f3a833 !important;
+}
+body.plain-theme {
+  --color-text: #0d0000 !important;
+  --color-highlight: #bf3419 !important;
+  --color-accent: #ff5736 !important;
+  --color-background: #ffffff !important;
+  --color-custom: #166ecc !important;
+}
+body.soldark-theme {
+  --color-text: #fdf6e3 !important;
+  --color-highlight: #586e75 !important;
+  --color-accent: #268bd2 !important;
+  --color-background: #002b36 !important;
+  --color-custom: #b58900 !important;
+}
+body.sollight-theme {
+  --color-text: #657b83 !important;
+  --color-highlight: #586e75 !important;
+  --color-accent: #eee8d5 !important;
+  --color-background: #fdf6e3 !important;
+  --color-custom: #d33682 !important;
+}
+body.tokyo-theme {
+  --color-text: #c0caf5 !important;
+  --color-highlight: #7aa2f7 !important;
+  --color-accent: #394b70 !important;
+  --color-background: #1a1b26 !important;
+  --color-custom: #9ece6a !important;
+}
+body.seabreeze-theme {
+  --color-text: #3760bf !important;
+  --color-highlight: #007197 !important;
+  --color-accent: #d7d7db !important;
+  --color-background: #e1e2e7 !important;
+  --color-custom: #f52a65 !important;
+}
+body.gameboy-theme {
+  --color-text: #283818 !important;
+  --color-highlight: #607050 !important;
+  --color-accent: #889878 !important;
+  --color-background: #b0c0a0 !important;
+  --color-custom: #476b42 !important;
+}
+body.sunset-theme {
+  --color-text: #fbbbad !important;
+  --color-highlight: #ee8695 !important;
+  --color-accent: #4a7a96 !important;
+  --color-background: #27232a !important;
+  --color-custom: #333f58 !important;
+}
+a,
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+span,
+li {
+  color: var(--color-text);
+  text-decoration: none;
+}
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0 0 0 12px;
+}
+#app {
+  width: 100vw;
+  margin: 0 auto;
+  padding: 0.8rem;
+  font-weight: 400;
+  min-height: 100vh;
+}
+@media (hover: hover) {
+  a:hover {
+    background-color: rgb(from var(--color-accent) r g b / 50%);
+  }
+}
+@media (min-width: 1024px) {
+  body {
+    display: flex;
+    place-items: center;
+  }
+  #app {
+    grid-template-columns: 1fr 1fr;
+    padding: 0 2rem;
+    width: 1024px;
+  }
+}
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 5px solid var(--color-accent);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: spinner-anim 1s linear infinite;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%);
+}
+@keyframes spinner-anim {
+  0% {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.feed-title {
+  padding: 0 0 0 4%;
+  margin: 0 0 14px;
+  width: 100%;
+  border-bottom: 2px solid var(--color-accent);
+  position: relative;
+}
+.feed-title a {
+  display: inline-block;
+  background-color: var(--color-accent);
+  padding: 2px 20px 0;
+  border-radius: 3px 3px 0 0;
+  max-width: 60%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  position: relative;
+  top: 7px;
+}
+.feed-header-tag {
+  color: var(--color-text);
+  background-color: var(--color-background);
+  font-size: 0.8em;
+  padding: 2px 10px;
+  font-weight: 700;
+  line-height: 10px;
+  border-radius: 25%;
+  margin-left: 4px;
+}
+.feed-item {
+  line-height: 34px;
+  width: 100%;
+}
+.feed-wrapper {
+  padding: 0 0 12px;
+}
+.feed-item-group {
+  position: relative;
+}
+.feed-group-date {
+  width: 94px;
+  color: var(--color-highlight);
+  position: relative;
+}
+.feed-item-domain {
+  opacity: 0.4;
+  font-size: 0.72rem;
+  margin: 0 0 0 4px;
+}
+.feed-item-link a {
+  padding: 6px 0;
+  cursor: pointer;
+}
+.feed-title svg {
+  width: 20px;
+  height: 20px;
+  position: relative;
+  top: 4px;
+  left: 4px;
+}
+.feed-item-author {
+  font-size: 12px;
+  color: var(--color-highlight);
+  opacity: 0.7;
+}
+@media (min-width: 1150px) {
+  .feed-group-date {
+    text-align: right;
+    position: absolute;
+    left: -94px;
+  }
+}
+.header-container {
+  width: 100%;
+  height: 80px;
+  margin: 10px 0 14px;
+  position: relative;
+}
+.header-title h2 {
+  font-size: 1.8rem;
+}
+.header-title a {
+  background-color: transparent;
+}
+.header-title svg {
+  position: relative;
+  top: 4px;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  fill: var(--color-text);
+}
+@media (max-width: 640px) {
+  .header-container {
+    margin: 0;
+  }
+  .header-title h2 {
+    font-size: 1.4rem;
+  }
+}
